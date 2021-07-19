@@ -1,17 +1,33 @@
-# scTreeShap
+# sctreeshap
 
 When doing single-cell RNA sequencing work, we firstly do clustering by community detection. Then we match the clusters to major cell types, which forms a cluster tree.
 
 ![clustertree.png](https://i.loli.net/2021/07/19/2bBatvnr45WczpK.png)
 
-We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. scTreeShap constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
+We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. sctreeshap constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
+
+## Installing treeshap
+
+Directly install by pip:
+
+```shell
+pip install sctreeshap
+```
+
+Or by conda:
+
+```python
+conda create -n sctreeshap python=3.8
+conda activate sctreeshap
+pip install sctreeshap
+```
 
 ## Data Input and Filtering
 
-An scTreeShap object construction needs a python dict reflecting the tree structure. Here is an example of the cluster tree above.
+An sctreeshap object construction needs a python dict reflecting the tree structure. Here is an example of the cluster tree above.
 
 ```python
-from scTreeShap import scTreeShap
+from sctreeshap import sctreeshap
 
 tree_arr = {
     "n1": ('n2', 'n70'),
@@ -90,7 +106,7 @@ tree_arr = {
     "n74": ('Astro L1-6 FGFR3 SLC14A1', 'Astro L1-2 FGFR3 GFAP')
 }
 
-Sample = scTreeShap(tree_arr)
+Sample = sctreeshap(tree_arr)
 ```
 
 The keys of the dict represent the name of each tree node, while the values represent the children of each node (the tree can be either binary or multi-children). Note that clusters do not need to be assigned as a key, since they are the leaf nodes in the tree and do not have children.
@@ -98,12 +114,18 @@ The keys of the dict represent the name of each tree node, while the values repr
 You can read in data by:
 
 ```python
-Sample.readData(branch_name='n48', data_directory='./neuron_full.pkl', filetype='pkl')
+Sample.readData(branch_name='n70', data_directory='./nonneuron_full.pkl', filetype='pkl')
 ```
 
 where branch_name is your target branch, data_directory is the directory of the input file. It can be either a csv file or pkl file.
 
-## Display Shap Figures
+The sample data "nonneuron_full.pkl" can be downloaded from:
+
+```
+https://cuhko365-my.sharepoint.com/:u:/g/personal/119010351_link_cuhk_edu_cn/EQU9C6g30a9KvYW2qYRgwbwBCIDhLV_exoIZST1OyHEOWQ?e=HKFbNs
+```
+
+## Displaying Shap Figures
 
 Build multi-classification model and generate shap figures:
 

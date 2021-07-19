@@ -109,7 +109,7 @@ from sklearn.model_selection import train_test_split
 #       use_cluster_set indicates whether to activate choose from cluster_set;
 #       output can be 'DataFrame' or 'AnnData', which indicates return type.
 # Return: a DataFrame or AnnData object.
-class scTreeShap:
+class sctreeshap:
     def __checkLoops(self, root):
         checkResult = True
         self.__visited.append(root)

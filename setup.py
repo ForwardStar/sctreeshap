@@ -5,15 +5,15 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
   name="sctreeshap",
-  version="0.1.4",
+  version="0.1.6",
   author="Haoxuan Xie",
   author_email="haoxuanxie@link.cuhk.edu.cn",
+  url="https://github.com/ForwardStar/sctreeshap",
+  py_modules=["sctreeshap"],
   description="sctreeshap: a cluster tree data structure, and for shap analysis",
   long_description=long_description,
   long_description_content_type="text/markdown",
   license="LICENSE",
-  url="https://github.com/ForwardStar/sctreeshap",
-  py_modules=["sctreeshap"],
   classifiers=[
   "Programming Language :: Python :: 3.5",
   "License :: OSI Approved :: MIT License",
