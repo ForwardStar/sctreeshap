@@ -16,7 +16,7 @@ setuptools.setup(
   long_description=long_description,
   long_description_content_type="text/markdown",
   license="LICENSE",
-  url="https://github.com/pypa/sampleproject",
+  url="https://github.com/ForwardStar/sctreeshap",
   packages=setuptools.find_packages(where='sctreeshap'),
   package_dir={'': 'sctreeshap'},
   py_modules=[os.path.splitext(os.path.basename(path))[0] for path in glob.glob('sctreeshap/*.py')],
