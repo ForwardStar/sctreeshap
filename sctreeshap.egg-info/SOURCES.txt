@@ -1,0 +1,8 @@
+README.md
+setup.py
+sctreeshap/__init__.py
+sctreeshap/sctreeshap.py
+sctreeshap.egg-info/PKG-INFO
+sctreeshap.egg-info/SOURCES.txt
+sctreeshap.egg-info/dependency_links.txt
+sctreeshap.egg-info/top_level.txt
