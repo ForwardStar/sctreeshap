@@ -2,7 +2,7 @@
 
 When doing single-cell RNA sequencing work, we firstly do clustering by community detection. Then we match the clusters to major cell types, which forms a cluster tree.
 
-![clustertree.png](./img/clustertree.png)
+![clustertree.png](/img/clustertree.png)
 
 We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. scTreeShap constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
 

@@ -1,1 +1,1 @@
-name = "sctreeshap"
+from .sctreeshap import sctreeshap
