@@ -22,5 +22,12 @@ setuptools.setup(
   "Programming Language :: Python :: 3.5",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
-  ]
+  ],
+  install_requires=['shap>=0.37.0',
+                    'matplotlib>=3.3.2',
+                    'anndata>=0.7.6',
+                    'numpy>=1.19.2',
+                    'pandas>=0.25.2',
+                    'scikit-learn>=0.23.1',
+                    'xgboost>=1.3.3']
 )
