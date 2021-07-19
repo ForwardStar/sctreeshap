@@ -9,7 +9,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
   name="sctreeshap",
-  version="0.1.1",
+  version="0.1.2",
   author="Haoxuan Xie",
   author_email="haoxuanxie@link.cuhk.edu.cn",
   description="sctreeshap: a cluster tree data structure, and for shap analysis",
