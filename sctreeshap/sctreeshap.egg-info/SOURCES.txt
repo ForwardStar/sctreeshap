@@ -1,9 +1,0 @@
-README.md
-setup.py
-sctreeshap/__init__.py
-sctreeshap/sctreeshap.py
-sctreeshap/sctreeshap.egg-info/PKG-INFO
-sctreeshap/sctreeshap.egg-info/SOURCES.txt
-sctreeshap/sctreeshap.egg-info/dependency_links.txt
-sctreeshap/sctreeshap.egg-info/requires.txt
-sctreeshap/sctreeshap.egg-info/top_level.txt

@@ -1,7 +1,3 @@
-import glob
-import os
-import setuptools
-
 import setuptools
 
 with open("README.md", "r", encoding='utf-8') as fh:
@@ -9,7 +5,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
   name="sctreeshap",
-  version="0.1.2",
+  version="0.1.3",
   author="Haoxuan Xie",
   author_email="haoxuanxie@link.cuhk.edu.cn",
   description="sctreeshap: a cluster tree data structure, and for shap analysis",
@@ -18,6 +14,7 @@ setuptools.setup(
   license="LICENSE",
   url="https://github.com/ForwardStar/sctreeshap",
   packages=setuptools.find_packages(),
+  py_modules=["sctreeshap"],
   classifiers=[
   "Programming Language :: Python :: 3.5",
   "License :: OSI Approved :: MIT License",
@@ -29,5 +26,6 @@ setuptools.setup(
                     'numpy>=1.19.2',
                     'pandas>=0.25.2',
                     'scikit-learn>=0.23.1',
+                    'imblearn>=0.0',
                     'xgboost>=1.3.3']
 )
