@@ -6,6 +6,10 @@ When doing single-cell RNA sequencing work, we firstly do clustering by communit
 
 We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. sctreeshap constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
 
+Github repo:
+
+https://github.com/ForwardStar/sctreeshap
+
 ## Installing treeshap
 
 Directly install by pip:
@@ -121,9 +125,7 @@ where branch_name is your target branch, data_directory is the directory of the 
 
 The sample data "nonneuron_full.pkl" can be downloaded from:
 
-```
 https://cuhko365-my.sharepoint.com/:u:/g/personal/119010351_link_cuhk_edu_cn/EQU9C6g30a9KvYW2qYRgwbwBCIDhLV_exoIZST1OyHEOWQ?e=HKFbNs
-```
 
 ## Displaying Shap Figures
 

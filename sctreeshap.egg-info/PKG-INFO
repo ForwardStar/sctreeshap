@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sctreeshap
-Version: 0.1.5
+Version: 0.1.6
 Summary: sctreeshap: a cluster tree data structure, and for shap analysis
 Home-page: https://github.com/ForwardStar/sctreeshap
 Author: Haoxuan Xie
@@ -13,6 +13,10 @@ Description: # sctreeshap
         ![clustertree.png](https://i.loli.net/2021/07/19/2bBatvnr45WczpK.png)
         
         We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. sctreeshap constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
+        
+        Github repo:
+        
+        https://github.com/ForwardStar/sctreeshap
         
         ## Installing treeshap
         
@@ -129,11 +133,9 @@ Description: # sctreeshap
         
         The sample data "nonneuron_full.pkl" can be downloaded from:
         
-        ```
         https://cuhko365-my.sharepoint.com/:u:/g/personal/119010351_link_cuhk_edu_cn/EQU9C6g30a9KvYW2qYRgwbwBCIDhLV_exoIZST1OyHEOWQ?e=HKFbNs
-        ```
         
-        ## Display Shap Figures
+        ## Displaying Shap Figures
         
         Build multi-classification model and generate shap figures:
         
