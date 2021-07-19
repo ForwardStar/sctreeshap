@@ -9,25 +9,26 @@ from matplotlib import pyplot as plt
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
 
-# 1. Construct a ClusterTree:
-#   a = ClusterTree(tree_arr)
+# 1. Construct a sctreeshap object with a given cluster tree:
+#   a = sctreeshap(tree_arr=None)
 # where tree_arr is a dict.
 #           Let n <- len(tree_arr);
-#                   then n represents the number of non-leaf nodes in the ClusterTree;
-#               tree_arr[str] represents the node of name str in the ClusterTree;
+#                   then n represents the number of non-leaf nodes in the cluster tree;
+#               tree_arr[str] represents the node of name str in the cluster tree;
 #                   tree_arr[str] can be a list or a tuple of strings, representing the name of childs of the node (from left to right);
 #                   e.g. tree_arr['n1'] = ('n2', 'n70') represents a node named 'n1', whose left child is 'n2' and right child is 'n70';
 #               note that you do not need to create nodes for clusters, since they are leaf nodes and have no childs.
 # Or:
-#   a = ClusterTree(tree_arr)
+#   a = sctreeshap(tree_arr)
 # where tree_arr is a dict.
 #            Let n <- len(tree_arr);
-#                   then n represents the number of nodes (root excluded) in the ClusterTree;
-#               tree_arr[str] represents the node of name str in the ClusterTree;
+#                   then n represents the number of nodes (root excluded) in the cluster tree;
+#               tree_arr[str] represents the node of name str in the cluster tree;
 #                   tree_arr[str] should be a list or a tuple of a string and an int, representing the name of parent of the node and which child it is (from left to right, start from 0);
 #                   e.g. tree_arr['n2'] = ('n1', 0) represents a node named 'n2', who is the leftmost child of 'n1';
 #               note that you do not need to create a node for the root, since it does not have a parent.
-# Return: a ClusterTree object.
+# If tree_arr == None, then it does not construct a cluster tree,
+# Return: an sctreeshap object.
 #
 # 2. Set default data directory:
 #   a.setDataDirectory(data_directory)
@@ -35,85 +36,79 @@ from sklearn.model_selection import train_test_split
 # Note: if you want to clear default settings, run "a.set...(None)".
 # Return: None
 #
-# 3. Set default dataset:
+# 3. Set default data file type:
+#   a.setFileType(filetype)
+# where filetype can be 'csv' or 'pkl', representing the input file type.
+# Return: None
+#
+# 4. Set default dataset:
 #   a.setDataSet(data)
 # where data is a DataFrame or AnnData, representing the default dataset, which would be prior to data directory.
 # Note: the priority order is "dataset parameter -> data directory parameter -> default dataset -> default data directory".
 # Return: None
 #
-# 4. Set default branch:
+# 5. Set default branch:
 #   a.setBranch(branch_name)
 # where branch_name is a string representing the branch's name, which would be defaultedly chosen.
 # Return: None
 #
-# 5. Set default cluster:
+# 6. Set default cluster:
 #   a.setCluster(cluster_name)
 # where cluster_name is a string representing the cluster's name, which would be defaultedly chosen.
 # Return: None
 #
-# 6. Set default cluster set:
+# 7. Set default cluster set:
 #   a.setClusterSet(cluster_set)
 # where cluster_set is a list or tuple of strings containing all target clusters to choose.
 # Return: None
 #
-# 7. Set default shap plots parameters of explainBinary:
+# 8. Set default shap plots parameters of explainBinary:
 #   a.setShapParamsBinary(shap_params)
 # where shap_params is a dict, including five keys: ["bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"], which is defaultedly set as [True, True, False, False, False];
 #           you can reset the dict to determine what kinds of figures to output.
 # Return: None
 #
-# 8. Set default shap plots parameters of explainMulti:
+# 9. Set default shap plots parameters of explainMulti:
 #   a.setShapParamsMulti(shap_params)
 # where shap_params is a dict, including three keys: ["bar_plot", "beeswarm", "decision_plot"], which is defaultedly set as [True, False, False];
 #           you can reset the dict to determine what kinds of figures to output.
 # Return: None
 #
-# 9. Get XGBClassifier of the last job: (available after each 'a.explainBinary()' or 'a.explainMulti()')
+# 10. Get XGBClassifier of the last job: (available after each 'a.explainBinary()' or 'a.explainMulti()')
 #   a.getClassifier()
 # Return: <class 'xgboost.sklearn.XGBClassifier'> object
 #
-# 10. Get shap explainer of the last job: (available after each 'a.explainBinary()' or 'a.explainMulti()')
+# 11. Get shap explainer of the last job: (available after each 'a.explainBinary()' or 'a.explainMulti()')
 #   a.getExplainer()
 # Return: <class 'shap.explainers._tree.Tree'> object
 #
-# 11. Get shap values of the last job: (available after each 'a.explainBinary()' or 'a.explainMulti()')
+# 12. Get shap values of the last job: (available after each 'a.explainBinary()' or 'a.explainMulti()')
 #   a.getShapValues()
 # Return: an ndarray.
 #
-# 12. Find which branch a specific cluster is in: 
+# 13. Find which branch a specific cluster is in: 
 #   a.find(cluster_name=None)
 # where cluster_name is a string representing the cluster's name, e.g. "Exc L5-6 THEMIS FGF10".
 #           if cluster_name == None: choose default cluster.
 # Return: a string representing the path.
 #
-# 13. List the genes of a branch:
+# 14. List the genes of a branch:
 #   a.list(branch_name=None)
 # where branch_name is a string representing the branch's name, e.g. "n48".
-#           if branch_name == None: choose default branch.
+#           if branch_name == None: choose default branch; if default is still None, list all clusters.
 # Return: a list including all cluster names under the branch.
 #
-# 14. Read cells from a branch:
-#   a.readData(branch_name=None, data_directory=None, filetype='csv', cluster_set=[], use_cluster_set=False, output='DataFrame')
+# 15. Read cells from a branch:
+#   a.readData(data_directory=None, filetype='csv', branch_name=None, cluster_set=[], use_cluster_set=False, output='DataFrame')
 # where data_directory is a string representing the directory of the file, e.g. "~/xhx/python/neuron_full.pkl";
 #           if data_directory == None: use default data directory.
-#       branch_name is a string representing the target branch, e.g. "n48";
-#           if branch_name == None: choose default branch.
 #       filetype is the file type, default is 'csv', which can be reset to 'pkl';
+#       branch_name is a string representing the target branch, e.g. "n48";
+#           if branch_name == None: choose default branch; if default is still None, read the whole dataset.
 #       cluster_set is a list or tuple of strings containing all target clusters to choose;
 #       use_cluster_set indicates whether to activate choose from cluster_set;
 #       output can be 'DataFrame' or 'AnnData', which indicates return type.
 # Return: a DataFrame or AnnData object.
-#
-# 15. Read cells from a branch and encode clusters into numeric labels:
-#   a.readDataEncode(branch_name=None, data_directory=None, filetype='csv', cluster_set=[], use_cluster_set=False, output='DataFrame')
-# Return: a DataFrame or AnnData object, where all clusters are encoded into [0, num_class-1].
-# Hint: the number of clusters is stored in a.numOfClusters (only available after 'a.readDataEncode()').
-#
-# 16. Read cells and label the target cluster:
-#   a.readDataBinary(branch_name=None, cluster_name=None, data_directory=None, filetype='csv', cluster_set=[], use_cluster_set=False, output='DataFrame')
-# where cluster_name is a string representing the target cluster.
-#           if cluster_name == None: choose default cluster.
-# Return: a DataFrame or AnnData object, where all target clusters are relabelled as 'True', and the rest relabelled as 'False'.
 class scTreeShap:
     def __checkLoops(self, root):
         checkResult = True
@@ -129,12 +124,12 @@ class scTreeShap:
 
     def __checkClusterTree(self, tree_arr):
         if not isinstance(tree_arr, dict):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') requires a dict object as input.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') requires a dict object as input.")
             return -1
         typeOfTree = None
         for key in tree_arr.keys():
             if not isinstance(tree_arr[key], list) and not isinstance(tree_arr[key], tuple):
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
                 return False
             if typeOfTree == None:
                 if len(tree_arr[key]) > 1 and isinstance(tree_arr[key][1], int):
@@ -144,11 +139,11 @@ class scTreeShap:
             else:
                 if len(tree_arr[key]) > 1 and isinstance(tree_arr[key][1], int):
                     if typeOfTree == "ChildPointer":
-                        print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
+                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
                         return False
                 else:
                     if typeOfTree == "ParentPointer":
-                        print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
+                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
                         return False
         if typeOfTree == "ChildPointer":
             self.__TreeNode = tree_arr
@@ -157,31 +152,32 @@ class scTreeShap:
                     if item not in self.__parent.keys():
                         self.__parent[item] = key
                     else:
-                        print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
+                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
                         return False
             for key in tree_arr.keys():
                 if key not in self.__parent.keys():
                     if self.__root == None:
                         self.__root = key
                     else:
-                        print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
+                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
                         return False
             if self.__root == None:
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
                 return False
             if not self.__checkLoops(self.__root):
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
                 return False
         else:
             # needs implementation
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') receives a valid but not yet supported format. Please contact the developer.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives a valid but not yet supported format. Please contact the developer.")
             return False
         return True
 
-    def __init__(self, tree_arr):
+    def __init__(self, tree_arr=None):
         self.numOfClusters = 0
         self.__clusterDict = {}
         self.__dataDirectory = None
+        self.__fileType = 'csv'
         self.__dataSet = None
         self.__branch = None
         self.__cluster = None
@@ -208,7 +204,7 @@ class scTreeShap:
             "decision_plot": False
         }
         if not self.__checkClusterTree(tree_arr):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.ClusterTree()' (in file '" + __file__ + "') throws an exception.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') throws an exception.")
             return None
     
     def setDataDirectory(self, data_directory):
@@ -216,9 +212,19 @@ class scTreeShap:
             self.__dataDirectory = None
             return None
         if not isinstance(data_directory, str):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setDataDirectory()' (in file '" + __file__ + "') receives an invalid data_directory of wrong type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setDataDirectory()' (in file '" + __file__ + "') receives an invalid data_directory of wrong type.")
             return -1
         self.__dataDirectory = data_directory
+        return None
+    
+    def setFileType(self, filetype):
+        if filetype is None:
+            self.__fileType = 'csv'
+            return None
+        if filetype != 'csv' and filetype != 'pkl':
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setFileType()' (in file '" + __file__ + "') receives an invalid filetype parameter (must be 'csv' or 'pkl').")
+            return -1
+        self.__fileType = filetype
         return None
     
     def setDataSet(self, data):
@@ -226,9 +232,9 @@ class scTreeShap:
             self.__dataSet = None
             return None
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setDataSet()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setDataSet()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
             return -1
-        self.__dataSet = None
+        self.__dataSet = data
         return None
     
     def setBranch(self, branch_name):
@@ -236,7 +242,7 @@ class scTreeShap:
             self.__branch = None
             return None
         if not isinstance(branch_name, str):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setBranch()' (in file '" + __file__ + "') receives an invalid branch_name of wrong type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setBranch()' (in file '" + __file__ + "') receives an invalid branch_name of wrong type.")
             return -1
         self.__branch = branch_name
         return None
@@ -246,7 +252,7 @@ class scTreeShap:
             self.__cluster = None
             return None
         if not isinstance(cluster_name, str):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setCluster()' (in file '" + __file__ + "') receives an invalid cluster_name of wrong type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setCluster()' (in file '" + __file__ + "') receives an invalid cluster_name of wrong type.")
             return -1
         self.__cluster = cluster_name
         return None
@@ -256,7 +262,7 @@ class scTreeShap:
             self.__clusterSet = None
             return None
         if not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setClusterSet()' (in file '" + __file__ + "') receives an invalid cluster_set of wrong type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setClusterSet()' (in file '" + __file__ + "') receives an invalid cluster_set of wrong type.")
             return -1
         self.__clusterSet = cluster_set
         return None
@@ -272,7 +278,7 @@ class scTreeShap:
             }
             return None
         if not isinstance(shap_params, dict):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setShapParamsBinary()' (in file '" + __file__ + "') receives an invalid shap_params of wrong type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setShapParamsBinary()' (in file '" + __file__ + "') receives an invalid shap_params of wrong type.")
             return -1
         self.__shapParamsBinary = shap_params
         return None
@@ -286,7 +292,7 @@ class scTreeShap:
             }
             return None
         if not isinstance(shap_params, dict):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setShapParamsMulti()' (in file '" + __file__ + "') receives an invalid shap_params of wrong type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setShapParamsMulti()' (in file '" + __file__ + "') receives an invalid shap_params of wrong type.")
             return -1
         self.__shapParamsMulti = shap_params
         return None
@@ -308,7 +314,7 @@ class scTreeShap:
             if cluster_name == None:
                 self.__isFinished = True
                 time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.find()' (in file '" + __file__ + "') requires a target cluster name.")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.find()' (in file '" + __file__ + "') requires a target cluster name.")
                 return -1
         if root not in self.__TreeNode.keys():
             return "Cluster " + cluster_name + " not found!"
@@ -323,15 +329,13 @@ class scTreeShap:
         return "Cluster " + cluster_name + " not found!"
         
     def list(self, branch_name=None):
-        if branch_name == None:
+        if branch_name is None:
             branch_name = self.__branch
-            if branch_name == None:
-                self.__isFinished = True
-                time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.list()' (in file '" + __file__ + "') requires a target branch name.")
-                return -1
         try:
-            root = self.__TreeNode[branch_name]
+            if branch_name is None:
+                root = self.__root
+            else:
+                root = self.__TreeNode[branch_name]
         except:
             return [branch_name]
         result = []
@@ -339,24 +343,21 @@ class scTreeShap:
             result = result + self.list(item)
         return result
 
-    def readData(self, branch_name=None, data_directory=None, filetype='csv', cluster_set=[], use_cluster_set=False, output='DataFrame'):
+    def readData(self, data_directory=None, filetype=None, branch_name=None, cluster_set=[], use_cluster_set=False, output='DataFrame'):
         if data_directory == None:
             data_directory = self.__dataDirectory
         if not use_cluster_set and branch_name == None:
             branch_name = self.__branch
-            if branch_name == None:
-                self.__isFinished = True
-                time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.readData()' (in file '" + __file__ + "') requires a target branch name.")
-                return -1
         data = None
+        if filetype is None:
+            filetype = self.__fileType
         if filetype == 'csv':
             try:
                 data = pd.read_csv(data_directory)
             except:
                 self.__isFinished = True
                 time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
                 return -1
         elif filetype == 'pkl':
             try:
@@ -364,97 +365,35 @@ class scTreeShap:
             except:
                 self.__isFinished = True
                 time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
                 return -1
         else:
             self.__isFinished = True
             time.sleep(0.2)
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.readData()' (in file '" + __file__ + "') receives an unrecognized file type.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives an unrecognized file type.")
             return -1
         if use_cluster_set:
             if (not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple)) or len(cluster_set) == 0:
                 cluster_set = self.__clusterSet
             return data[data['cluster'].isin(cluster_set)]
-        clusters = self.list(branch_name)
-        if clusters == -1:
-            time.sleep(0.2)
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
-            return -1
-        if output == "DataFrame":
-            return data
-        elif output == "AnnData":
-            return self.DataFrame_to_AnnData(data)
-        else:
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.readData()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
-            return -1
-    
-    def readDataEncode(self, branch_name=None, data_directory=None, filetype='csv', cluster_set=[], use_cluster_set=False, output='DataFrame'):
-        self.numOfClusters = 0
-        self.clusterDict = {}
-        def Encoder(cluster_name):
-            if cluster_name in self.clusterDict:
-                return self.clusterDict[cluster_name]
-            else:
-                self.clusterDict[cluster_name] = self.numOfClusters
-                self.numOfClusters += 1
-                return self.numOfClusters - 1
-        data = None
-        try:
-            data = self.readData(branch_name, data_directory, filetype, cluster_set, use_cluster_set)
-            if isinstance(data, int):
-                self.__isFinished = True
+        if branch_name != None:
+            clusters = self.list(branch_name)
+            if clusters == -1:
                 time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.readDataEncode()' (in file '" + __file__ + "') throws an exception.")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
                 return -1
-        except:
-            self.__isFinished = True
-            time.sleep(0.2)
-            print("\033[0;31;40mError:\033[0m method 'ClusterTree.readDataEncode()' (in file '" + __file__ + "') throws an exception.")
-            return -1
-        data['cluster'] = data.apply(lambda row: Encoder(row['cluster']), axis=1)
         if output == "DataFrame":
             return data
         elif output == "AnnData":
             return self.DataFrame_to_AnnData(data)
         else:
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.readDataEncode()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
             return -1
 
-    def readDataBinary(self, branch_name=None, cluster_name=None, data_directory=None, filetype='csv', cluster_set=[], use_cluster_set=False, output='DataFrame'):
-        data = None
-        try:
-            data = self.readData(branch_name, data_directory, filetype, cluster_set, use_cluster_set)
-            if isinstance(data, int):
-                self.__isFinished = True
-                time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.readDataBinary()' (in file '" + __file__ + "') throws an exception.")
-                return -1
-        except:
-            self.__isFinished = True
-            time.sleep(0.2)
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.readDataBinary()' (in file '" + __file__ + "') throws an exception.")
-            return -1
-        if cluster_name == None:
-            cluster_name = self.__cluster
-            if cluster_name == None:
-                self.__isFinished = True
-                time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.readDataBinary()' (in file '" + __file__ + "') requires a target cluster name.")
-                return -1
-        data.loc[data['cluster'] != cluster_name, 'cluster'] = False
-        data.loc[data['cluster'] == cluster_name, 'cluster'] = True
-        if output == "DataFrame":
-            return data
-        elif output == "AnnData":
-            return self.DataFrame_to_AnnData(data)
-        else:
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.readDataBinary()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
-            return -1
-    
-    def AnnData_to_DataFrame(adata):
+    def AnnData_to_DataFrame(self, adata):
         return pd.concat([pd.DataFrame(adata.X, columns=adata.var.index.values).reset_index(drop=True), adata.obs.reset_index(drop=True)], axis=1, join="inner")
 
-    def DataFrame_to_AnnData(data):
+    def DataFrame_to_AnnData(self, data):
         obs = pd.DataFrame(data["cluster"], columns=["cluster"])
         obs["cluster"] = obs.cluster.astype("category")
         data.drop(["cluster", "Unnamed: 0"], axis=1, inplace=True)
@@ -462,18 +401,7 @@ class scTreeShap:
         X = np.array(data)
         return ad.AnnData(np.array(data), obs=obs, var=var, dtype="float")
 
-    def explainBinary(self, 
-                    branch_name=None, 
-                    cluster_name=None, 
-                    data_directory=None,
-                    filetype='csv',
-                    data=None,
-                    cluster_set=[], 
-                    use_cluster_set=False, 
-                    use_SMOTE=False, 
-                    shap_output_directory=None, 
-                    nthread=32, 
-                    shap_params=None):
+    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, shap_output_directory=None, nthread=32, shap_params=None):
         def showProcess():
             print(self.__waitingMessage, end="  ")
             while not self.__isFinished:
@@ -487,59 +415,25 @@ class scTreeShap:
                 time.sleep(0.05)
             print('\bdone')
 
-        # Reading data in
-        self.__waitingMessage = "Reading data in.."
-        self.__isFinished = False
-        thread_readData = threading.Thread(target=showProcess)
-        thread_readData.start()
-        if data is None and data_directory is None:
-            if self.__dataSet is None:
-                try:
-                    data = self.readData(branch_name, data_directory, filetype, cluster_set, use_cluster_set)
-                    if isinstance(data, int):
-                        self.__isFinished = True
-                        time.sleep(0.2)
-                        print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                        return -1
-                except:
-                    self.__isFinished = True
-                    time.sleep(0.2)
-                    print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                    return -1
-            else:
-                data = self.__dataSet
-        elif data is None:
-            try:
-                data = self.readData(branch_name, data_directory, filetype, cluster_set, use_cluster_set)
-                if isinstance(data, int):
-                    self.__isFinished = True
-                    time.sleep(0.2)
-                    print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                    return -1
-            except:
-                self.__isFinished = True
-                time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                return -1
-        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setDataSet()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
-        if isinstance(data, ad._core.anndata.AnnData):
-            data = self.AnnData_to_DataFrame(data)
-        self.__isFinished = True
-        thread_readData.join()
-        time.sleep(0.2)
-
         # Preprocessing data
         self.__waitingMessage = "Preprocessing data.."
         self.__isFinished = False
         thread_preprocessData = threading.Thread(target=showProcess)
         thread_preprocessData.start()
+        if data is None:
+            data = self.__dataSet
+        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.explainBinary()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
+            return -1
+        if isinstance(data, ad._core.anndata.AnnData):
+            data = self.AnnData_to_DataFrame(data)
         y = np.array(data['cluster'])
         x = data.drop(columns=['cluster'])
         if use_SMOTE:
             oversample = SMOTE()
             x, y = oversample.fit_resample(x, y)
+        if cluster_name is None:
+            cluster_name = self.__cluster
         y[y != cluster_name] = False
         y[y == cluster_name] = True
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
@@ -627,18 +521,7 @@ class scTreeShap:
             shap.decision_plot(self.__explainer.expected_value, shap_values, x_target, link='logit', show=False)
             plt.show()
 
-    def explainMulti(self, 
-                    branch_name=None, 
-                    data_directory=None, 
-                    filetype='csv', 
-                    data=None,
-                    cluster_set=[], 
-                    use_cluster_set=False, 
-                    use_SMOTE=False, 
-                    shap_output_directory=None, 
-                    nthread=32, 
-                    shap_params=None):
-        print("\033[1;33;40mWarning:\033[0m ClusterTree.explainMulti() is still under developing.")
+    def explainMulti(self, data=None, use_SMOTE=False, shap_output_directory=None, nthread=32, shap_params=None):
         def showProcess():
             print(self.__waitingMessage, end="  ")
             while not self.__isFinished:
@@ -652,54 +535,18 @@ class scTreeShap:
                 time.sleep(0.05)
             print('\bdone')
 
-        # Reading data in
-        self.__waitingMessage = "Reading data in.."
-        self.__isFinished = False
-        thread_readData = threading.Thread(target=showProcess)
-        thread_readData.start()
-        if data is None and data_directory is None:
-            if self.__dataSet is None:
-                try:
-                    data = self.readData(branch_name, data_directory, filetype, cluster_set, use_cluster_set)
-                    if isinstance(data, int):
-                        self.__isFinished = True
-                        time.sleep(0.2)
-                        print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                        return -1
-                except:
-                    self.__isFinished = True
-                    time.sleep(0.2)
-                    print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                    return -1
-            else:
-                data = self.__dataSet
-        elif data is None:
-            try:
-                data = self.readData(branch_name, data_directory, filetype, cluster_set, use_cluster_set)
-                if isinstance(data, int):
-                    self.__isFinished = True
-                    time.sleep(0.2)
-                    print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                    return -1
-            except:
-                self.__isFinished = True
-                time.sleep(0.2)
-                print("\033[1;31;40mError:\033[0m method 'ClusterTree.explainBinary()' (in file '" + __file__ + "') throws an exception.")
-                return -1
-        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'ClusterTree.setDataSet()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
-        if isinstance(data, ad._core.anndata.AnnData):
-            data = self.AnnData_to_DataFrame(data)
-        self.__isFinished = True
-        thread_readData.join()
-        time.sleep(0.2)
-
         # Preprocessing data
         self.__waitingMessage = "Preprocessing data.."
         self.__isFinished = False
         thread_preprocessData = threading.Thread(target=showProcess)
         thread_preprocessData.start()
+        if data is None:
+            data = self.__dataSet
+        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.explainMulti()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
+            return -1
+        if isinstance(data, ad._core.anndata.AnnData):
+            data = self.AnnData_to_DataFrame(data)
         y = np.array(data['cluster'])
         x = data.drop(columns=['cluster'])
         if use_SMOTE:
