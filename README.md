@@ -10,10 +10,12 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.2.1 Update
+## v0.3.0 Update
 
 - Bug fixes.
 - README updated.
+- Function 'list' is renamed to 'listBranch'; function 'find' is renamed to 'findCluster'.
+- Add function 'mergeBranch', which can merge all clusters under a given branch into one. Run "sctreeshap.help('mergeBranch')" for details if needed.
 
 ## Installing sctreeshap
 
@@ -149,6 +151,8 @@ The housekeeping genes of human can be downloaded from:
 http://www.housekeeping.unicamp.br/Housekeeping_TranscriptsHuman.xlsx
 
 ## Displaying Shap Figures
+
+Note: this part is recommended to run in jupyter notebook.
 
 After reading in the data and filtering, you can build multi-classification model and generate shap figures:
 

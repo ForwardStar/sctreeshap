@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 import time
 import threading
@@ -241,16 +241,16 @@ class sctreeshap:
     # cluster_name: str, representing the cluster's name, e.g. "Exc L5-6 THEMIS FGF10".
     #           if cluster_name == None: choose default cluster.
     # Return: str, representing the path.
-    def find(self, cluster_name=None, root=None, path="ROOT"):
+    def findCluster(self, cluster_name=None, root=None, path="ROOT"):
         if root is None:
             root = self.__root
         if root is None:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.find()' (in file '" + __file__ + "') found an empty cluster tree!")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.findCluster()' (in file '" + __file__ + "') found an empty cluster tree!")
             return -1
         if cluster_name == None:
             cluster_name = self.__cluster
             if cluster_name == None:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.find()' (in file '" + __file__ + "') requires a target cluster name.")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.findCluster()' (in file '" + __file__ + "') requires a target cluster name.")
                 return -1
         if root not in self.__TreeNode.keys():
             return "Cluster " + cluster_name + " not found!"
@@ -259,7 +259,7 @@ class sctreeshap:
             if item == cluster_name:
                 return path + " --> " + root + " --> " + cluster_name
             else:
-                result = self.find(cluster_name, item, path + " --> " + root)
+                result = self.findCluster(cluster_name, item, path + " --> " + root)
                 if result != "Cluster " + cluster_name + " not found!":
                     return result
         return "Cluster " + cluster_name + " not found!"
@@ -268,9 +268,9 @@ class sctreeshap:
     # branch_name: str, representing the branch's name, e.g. "n48".
     #           if branch_name == None: choose default branch; if default is still None, list all clusters.
     # Return: list, including all cluster names under the branch.
-    def list(self, branch_name=None):
+    def listBranch(self, branch_name=None):
         if self.__root is None:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.find()' (in file '" + __file__ + "') requires a target cluster name.")
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.listBranch()' (in file '" + __file__ + "') found an empty cluster tree!")
             return -1
         if branch_name is None:
             branch_name = self.__branch
@@ -283,7 +283,7 @@ class sctreeshap:
             return [branch_name]
         result = []
         for item in root:
-            result = result + self.list(item)
+            result = result + self.listBranch(item)
         return result
 
     # Read cells from a given directory whose clusters are under a given branch.
@@ -323,10 +323,10 @@ class sctreeshap:
                 cluster_set = self.__clusterSet
             return data[data['cluster'].isin(cluster_set)]
         if branch_name != None:
-            clusters = self.list(branch_name)
+            clusters = self.listBranch(branch_name)
             data = data[data['cluster'].isin(clusters)]
             if clusters == -1:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception.")
                 return -1
         if output == "DataFrame":
             return data
@@ -335,17 +335,56 @@ class sctreeshap:
         else:
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
             return -1
-
+    
+    # Merge all clusters under a given branch.
+    # data: AnnData or DataFrame;
+    # branch_name: str;
+    # Return: AnnData or DataFrame.
+    def mergeBranch(self, data=None, branch_name=None):
+        isAnnData = False
+        if data is None:
+            data = self.__dataSet
+        if branch_name is None:
+            branch_name = self.__branch
+        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
+            return -1
+        if isinstance(data, ad._core.anndata.AnnData):
+            isAnnData = True
+            data = self.AnnData_to_DataFrame(data)
+        if branch_name is None:
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') requires a target branch.")
+            return -1
+        clusters = self.listBranch(branch_name)
+        if clusters == -1:
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') throws an exception.")
+            return -1
+        data.loc[data[data['cluster'].isin(clusters)].index.tolist(), 'cluster'] = branch_name
+        if isAnnData:
+            return self.DataFrame_to_AnnData(data)
+        else:
+            return data
+        
     # Convert AnnData to DataFrame.
     # adata: an AnnData object.
     # Return: a DataFrame object.
-    def AnnData_to_DataFrame(self, adata):
+    def AnnData_to_DataFrame(self, adata=None):
+        if adata is None:
+            adata = self.__dataSet
+        if not isinstance(adata, ad._core.anndata.AnnData):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.AnnData_to_DataFrame()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData').")
+            return -1
         return pd.concat([pd.DataFrame(adata.X, columns=adata.var.index.values).reset_index(drop=True), adata.obs.reset_index(drop=True)], axis=1, join="inner")
 
     # Convert DataFrame to AnnData.
     # data: a DataFrame object.
     # Return: an AnnData object.
-    def DataFrame_to_AnnData(self, data):
+    def DataFrame_to_AnnData(self, data=None):
+        if data is None:
+            data = self.__dataSet
+        if not isinstance(adata, pd.core.frame.DataFrame):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.DataFrame_to_AnnData()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'DataFrame').")
+            return -1
         obs = pd.DataFrame(data["cluster"], columns=["cluster"])
         obs["cluster"] = obs.cluster.astype("category")
         data.drop(["cluster", "Unnamed: 0"], axis=1, inplace=True)
@@ -587,7 +626,7 @@ class sctreeshap:
         thread_buildModels = threading.Thread(target=showProcess)
         thread_buildModels.start()
         x_test = x_test.reset_index(drop=True)
-        self.__XGBClassifer = XGBClassifier(objective="multi:softmax", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
+        self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
         self.__XGBClassifer.fit(x_train, y_train)
         self.__isFinished = True
         thread_buildModels.join()
@@ -688,10 +727,11 @@ class sctreeshap:
             setClusterSet = 'setClusterSet(): set default target cluster set.'
             setShapParamsBinary = 'setShapParamsBinary(): set default shap plots parameters of explainBinary().'
             setShapParamsMulti = 'setShapParamsMulti(): set default shap plots parameters of explainMulti().'
-            find = 'find(): find which branch a given cluster is in.'
-            _list = 'list(): list the clusters of a given branch.'
+            findCluster = 'findCluster(): find which branch a given cluster is in.'
+            listBranch = 'listBranch(): list the clusters of a given branch.'
             dataprocessing = '\033[1;37;40mData processing:\033[0m'
             readData = 'readData(): read cells from a given directory whose clusters are under a given branch.'
+            mergeBranch = 'mergeBranch(): merge all clusters under a given branch.'
             AnnData_to_DataFrame = 'AnnData_to_DataFrame(): convert AnnData to DataFrame.'
             DataFrame_to_AnnData = 'DataFrame_to_AnnData(): convert DataFrame to AnnData.'
             geneFiltering = 'geneFiltering(): filter genes customly.'
@@ -708,8 +748,8 @@ class sctreeshap:
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + initialization + ' ' * (num_of_spaces - len(initialization) + 14) + '  |\n' \
                 + '|  ' + sctreeshap + ' ' * (num_of_spaces - len(sctreeshap)) + '  |\n' \
-                + '|  ' + find + ' ' * (num_of_spaces - len(find)) + '  |\n' \
-                + '|  ' + _list + ' ' * (num_of_spaces - len(_list)) + '  |\n' \
+                + '|  ' + findCluster + ' ' * (num_of_spaces - len(findCluster)) + '  |\n' \
+                + '|  ' + listBranch + ' ' * (num_of_spaces - len(listBranch)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + settings + ' ' * (num_of_spaces - len(settings) + 14) + '  |\n' \
                 + '|  ' + setDataDirectory + ' ' * (num_of_spaces - len(setDataDirectory)) + '  |\n' \
@@ -722,6 +762,7 @@ class sctreeshap:
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
                 + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
+                + '|  ' + mergeBranch + ' ' * (num_of_spaces - len(mergeBranch)) + '  |\n' \
                 + '|  ' + AnnData_to_DataFrame + ' ' * (num_of_spaces - len(AnnData_to_DataFrame)) + '  |\n' \
                 + '|  ' + DataFrame_to_AnnData + ' ' * (num_of_spaces - len(DataFrame_to_AnnData)) + '  |\n' \
                 + '|  ' + geneFiltering + ' ' * (num_of_spaces - len(geneFiltering)) + '  |\n' \
@@ -729,9 +770,6 @@ class sctreeshap:
                 + '|  ' + analysis + ' ' * (num_of_spaces - len(analysis) + 14) + '  |\n' \
                 + '|  ' + explainBinary + ' ' * (num_of_spaces - len(explainBinary)) + '  |\n' \
                 + '|  ' + explainMulti + ' ' * (num_of_spaces - len(explainMulti)) + '  |\n' \
-                + '|  ' + getClassifier + ' ' * (num_of_spaces - len(getClassifier)) + '  |\n' \
-                + '|  ' + getExplainer + ' ' * (num_of_spaces - len(getExplainer)) + '  |\n' \
-                + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'sctreeshap':
             function = '\033[1;37;40msctreeshap.sctreeshap\033[0m'
@@ -887,9 +925,9 @@ class sctreeshap:
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
                 + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
-        if cmd == 'find':
-            function = '\033[1;37;40msctreeshap.sctreeshap.find\033[0m'
-            api = 'sctreeshap.sctreeshap.find(cluster_name=None)'
+        if cmd == 'findCluster':
+            function = '\033[1;37;40msctreeshap.sctreeshap.findCluster\033[0m'
+            api = 'sctreeshap.sctreeshap.findCluster(cluster_name=None)'
             description =                   'Description: find which branch a given cluster is in.'
             cluster_name =                          'Parameters:  cluster_name: str'
             cluster_name_description1 =             '             |  The target cluster.'
@@ -907,9 +945,9 @@ class sctreeshap:
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
-        if cmd == 'list':
-            function = '\033[1;37;40msctreeshap.sctreeshap.list\033[0m'
-            api = 'sctreeshap.sctreeshap.list(branch_name=None)'
+        if cmd == 'listBranch':
+            function = '\033[1;37;40msctreeshap.sctreeshap.listBranch\033[0m'
+            api = 'sctreeshap.sctreeshap.listBranch(branch_name=None)'
             description =                   'Description: list the clusters of a given branch'
             branch_name =                          'Parameters:  branch_name: str'
             branch_name_description1 =             '             |  The target branch.'
@@ -962,6 +1000,26 @@ class sctreeshap:
                 + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
                 + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
                 + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'mergeBranch':
+            function = '\033[1;37;40msctreeshap.sctreeshap.mergeBranch\033[0m'
+            api = 'sctreeshap.sctreeshap.mergeBranch(data=None, branch_name=None)'
+            description =                    'Description: merge all clusters under a given branch.'
+            data =                          'Parameters:  data: AnnData or DataFrame'
+            branch_name =                   '             branch_name: str'
+            return_description =            'Return:      DataFrame or AnnData.'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
+                + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
@@ -1131,10 +1189,11 @@ class sctreeshap:
                     setClusterSet = 'setClusterSet(): set default target cluster set.'
                     setShapParamsBinary = 'setShapParamsBinary(): set default shap plots parameters of explainBinary().'
                     setShapParamsMulti = 'setShapParamsMulti(): set default shap plots parameters of explainMulti().'
-                    find = 'find(): find which branch a given cluster is in.'
-                    _list = 'list(): list the clusters of a given branch.'
+                    findCluster = 'findCluster(): find which branch a given cluster is in.'
+                    listBranch = 'listBranch(): list the clusters of a given branch.'
                     dataprocessing = '\033[1;37;40mData processing:\033[0m'
                     readData = 'readData(): read cells from a given directory whose clusters are under a given branch.'
+                    mergeBranch = 'mergeBranch(): merge all clusters under a given branch.'
                     AnnData_to_DataFrame = 'AnnData_to_DataFrame(): convert AnnData to DataFrame.'
                     DataFrame_to_AnnData = 'DataFrame_to_AnnData(): convert DataFrame to AnnData.'
                     geneFiltering = 'geneFiltering(): filter genes customly.'
@@ -1151,8 +1210,8 @@ class sctreeshap:
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + initialization + ' ' * (num_of_spaces - len(initialization) + 14) + '  |\n' \
                         + '|  ' + sctreeshap + ' ' * (num_of_spaces - len(sctreeshap)) + '  |\n' \
-                        + '|  ' + find + ' ' * (num_of_spaces - len(find)) + '  |\n' \
-                        + '|  ' + _list + ' ' * (num_of_spaces - len(_list)) + '  |\n' \
+                        + '|  ' + findCluster + ' ' * (num_of_spaces - len(findCluster)) + '  |\n' \
+                        + '|  ' + listBranch + ' ' * (num_of_spaces - len(listBranch)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + settings + ' ' * (num_of_spaces - len(settings) + 14) + '  |\n' \
                         + '|  ' + setDataDirectory + ' ' * (num_of_spaces - len(setDataDirectory)) + '  |\n' \
@@ -1165,6 +1224,7 @@ class sctreeshap:
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
                         + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
+                        + '|  ' + mergeBranch + ' ' * (num_of_spaces - len(mergeBranch)) + '  |\n' \
                         + '|  ' + AnnData_to_DataFrame + ' ' * (num_of_spaces - len(AnnData_to_DataFrame)) + '  |\n' \
                         + '|  ' + DataFrame_to_AnnData + ' ' * (num_of_spaces - len(DataFrame_to_AnnData)) + '  |\n' \
                         + '|  ' + geneFiltering + ' ' * (num_of_spaces - len(geneFiltering)) + '  |\n' \
@@ -1172,9 +1232,9 @@ class sctreeshap:
                         + '|  ' + analysis + ' ' * (num_of_spaces - len(analysis) + 14) + '  |\n' \
                         + '|  ' + explainBinary + ' ' * (num_of_spaces - len(explainBinary)) + '  |\n' \
                         + '|  ' + explainMulti + ' ' * (num_of_spaces - len(explainMulti)) + '  |\n' \
-                        + '|  ' + getClassifier + ' ' * (num_of_spaces - len(getClassifier)) + '  |\n' \
-                        + '|  ' + getExplainer + ' ' * (num_of_spaces - len(getExplainer)) + '  |\n' \
-                        + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
+                        # + '|  ' + getClassifier + ' ' * (num_of_spaces - len(getClassifier)) + '  |\n' \
+                        # + '|  ' + getExplainer + ' ' * (num_of_spaces - len(getExplainer)) + '  |\n' \
+                        # + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
                 elif cmd == 'sctreeshap':
                     function = '\033[1;37;40msctreeshap.sctreeshap\033[0m'
@@ -1330,9 +1390,9 @@ class sctreeshap:
                         + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
                         + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'find':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.find\033[0m'
-                    api = 'sctreeshap.sctreeshap.find(cluster_name=None)'
+                elif cmd == 'findCluster':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.findCluster\033[0m'
+                    api = 'sctreeshap.sctreeshap.findCluster(cluster_name=None)'
                     description =                   'Description: find which branch a given cluster is in.'
                     cluster_name =                          'Parameters:  cluster_name: str'
                     cluster_name_description1 =             '             |  The target cluster.'
@@ -1350,9 +1410,9 @@ class sctreeshap:
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'list':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.list\033[0m'
-                    api = 'sctreeshap.sctreeshap.list(branch_name=None)'
+                elif cmd == 'listBranch':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.listBranch\033[0m'
+                    api = 'sctreeshap.sctreeshap.listBranch(branch_name=None)'
                     description =                   'Description: list the clusters of a given branch'
                     branch_name =                          'Parameters:  branch_name: str'
                     branch_name_description1 =             '             |  The target branch.'
@@ -1405,6 +1465,26 @@ class sctreeshap:
                         + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
                         + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
                         + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                        + '|__' + '_' * num_of_spaces + '__|')
+                elif cmd == 'mergeBranch':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.mergeBranch\033[0m'
+                    api = 'sctreeshap.sctreeshap.mergeBranch(data=None, branch_name=None)'
+                    description =                    'Description: merge all clusters under a given branch.'
+                    data =                          'Parameters:  data: AnnData or DataFrame'
+                    branch_name =                   '             branch_name: str'
+                    return_description =            'Return:      DataFrame or AnnData.'
+                    print( ' __' + '_' * num_of_spaces + '__ \n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
+                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')

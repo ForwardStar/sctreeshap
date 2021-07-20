@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sctreeshap
-Version: 0.2.1
+Version: 0.3.0
 Summary: sctreeshap: a cluster tree data structure, and for shap analysis
 Home-page: https://github.com/ForwardStar/sctreeshap
 Author: Haoxuan Xie
@@ -18,10 +18,12 @@ Description: # sctreeshap
         
         https://github.com/ForwardStar/sctreeshap
         
-        ## v0.2.1 Update
+        ## v0.3.0 Update
         
         - Bug fixes.
         - README updated.
+        - Function 'list' is renamed to 'listBranch'; function 'find' is renamed to 'findCluster'.
+        - Add function 'mergeBranch', which can merge all clusters under a given branch into one. Run "sctreeshap.help('mergeBranch')" for details if needed.
         
         ## Installing sctreeshap
         
@@ -158,6 +160,8 @@ Description: # sctreeshap
         
         ## Displaying Shap Figures
         
+        Note: this part is recommended to run in jupyter notebook.
+        
         After reading in the data and filtering, you can build multi-classification model and generate shap figures:
         
         ```python
@@ -213,4 +217,5 @@ Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3.8
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
 Description-Content-Type: text/markdown
