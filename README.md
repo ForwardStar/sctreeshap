@@ -10,13 +10,10 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.2.0 Update
+## v0.2.1 Update
 
-- Implement the detailed api reference (See API References part).
-- You can now automatically filter genes before building the model.
-- Remove parameter "filetype", now recognize .csv file and .pkl file automatically.
-
-We are developing our documentations in the near future, which will include examples and the interface of the class.
+- Bug fixes.
+- README updated.
 
 ## Installing sctreeshap
 
@@ -126,7 +123,7 @@ The keys of the dict represent the name of each tree node, while the values repr
 You can read in data by:
 
 ```python
-Sample.readData(branch_name='n70', data_directory='./nonneuron_full.pkl', filetype='pkl')
+data = Sample.readData(branch_name='n70', data_directory='./nonneuron_full.pkl')
 ```
 
 where branch_name is your target branch, data_directory is the directory of the input file. It can be either a csv file or pkl file.
@@ -135,17 +132,29 @@ The sample data "nonneuron_full.pkl" can be downloaded from:
 
 https://cuhko365-my.sharepoint.com/:u:/g/personal/119010351_link_cuhk_edu_cn/EQU9C6g30a9KvYW2qYRgwbwBCIDhLV_exoIZST1OyHEOWQ?e=HKFbNs
 
-## Displaying Shap Figures
-
-Build multi-classification model and generate shap figures:
+After reading in data, you can filter low-expressed genes, housekeeping genes and general genes by:
 
 ```python
-Sample.setBranch('n70')
-Sample.setDataDirectory('./nonneuron_full.pkl')
-Sample.setFileType('pkl')
-Sample.setDataSet(Sample.readData())
+prefix = ["MT", "RPS", "RPL", "HSP", "HLA"]
+housekeeping = pd.read_csv("./Housekeeping_TranscriptsHuman.csv")
+housekeeping = list(housekeeping["Gene_symbol"])
+data = Sample.geneFiltering(data, min_partial=0.3, gene_set=housekeeping, gene_prefix=prefix)
+print(data)
+```
 
+Then genes expressed in <30% cells will be filtered. Genes in gene_set or with prefix in gene_prefix will also be filtered.
+
+The housekeeping genes of human can be downloaded from:
+
+http://www.housekeeping.unicamp.br/Housekeeping_TranscriptsHuman.xlsx
+
+## Displaying Shap Figures
+
+After reading in the data and filtering, you can build multi-classification model and generate shap figures:
+
+```python
 Sample.explainMulti(
+    data,
     use_SMOTE=False,
     shap_output_directory=None, # output shap values to shap_output_directory
     nthread=48, # multi-thread
@@ -157,16 +166,12 @@ Sample.explainMulti(
 )
 ```
 
-Build binary-classification model and generate shap figures:
+or build binary-classification model and generate shap figures:
 
 ```python
-Sample.setBranch('n70')
-Sample.setDataDirectory('./nonneuron_full.pkl')
-Sample.setFileType('pkl')
-Sample.setDataSet(Sample.readData())
-Sample.setCluster('Astro L1-2 FGFR3 GFAP')
-
 Sample.explainBinary(
+    data,
+    cluster_name='Astro L1-2 FGFR3 GFAP',
     use_SMOTE=False,
     shap_output_directory=None, # output shap values to shap_output_directory
     nthread=48, # multi-thread

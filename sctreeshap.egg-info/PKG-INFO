@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sctreeshap
-Version: 0.2.0
+Version: 0.2.1
 Summary: sctreeshap: a cluster tree data structure, and for shap analysis
 Home-page: https://github.com/ForwardStar/sctreeshap
 Author: Haoxuan Xie
@@ -18,13 +18,10 @@ Description: # sctreeshap
         
         https://github.com/ForwardStar/sctreeshap
         
-        ## v0.2.0 Update
+        ## v0.2.1 Update
         
-        - Implement the detailed api reference (See API References part).
-        - You can now automatically filter genes before building the model.
-        - Remove parameter "filetype", now recognize .csv file and .pkl file automatically.
-        
-        We are developing our documentations in the near future, which will include examples and the interface of the class.
+        - Bug fixes.
+        - README updated.
         
         ## Installing sctreeshap
         
@@ -134,7 +131,7 @@ Description: # sctreeshap
         You can read in data by:
         
         ```python
-        Sample.readData(branch_name='n70', data_directory='./nonneuron_full.pkl', filetype='pkl')
+        data = Sample.readData(branch_name='n70', data_directory='./nonneuron_full.pkl')
         ```
         
         where branch_name is your target branch, data_directory is the directory of the input file. It can be either a csv file or pkl file.
@@ -143,17 +140,29 @@ Description: # sctreeshap
         
         https://cuhko365-my.sharepoint.com/:u:/g/personal/119010351_link_cuhk_edu_cn/EQU9C6g30a9KvYW2qYRgwbwBCIDhLV_exoIZST1OyHEOWQ?e=HKFbNs
         
-        ## Displaying Shap Figures
-        
-        Build multi-classification model and generate shap figures:
+        After reading in data, you can filter low-expressed genes, housekeeping genes and general genes by:
         
         ```python
-        Sample.setBranch('n70')
-        Sample.setDataDirectory('./nonneuron_full.pkl')
-        Sample.setFileType('pkl')
-        Sample.setDataSet(Sample.readData())
+        prefix = ["MT", "RPS", "RPL", "HSP", "HLA"]
+        housekeeping = pd.read_csv("./Housekeeping_TranscriptsHuman.csv")
+        housekeeping = list(housekeeping["Gene_symbol"])
+        data = Sample.geneFiltering(data, min_partial=0.3, gene_set=housekeeping, gene_prefix=prefix)
+        print(data)
+        ```
         
+        Then genes expressed in <30% cells will be filtered. Genes in gene_set or with prefix in gene_prefix will also be filtered.
+        
+        The housekeeping genes of human can be downloaded from:
+        
+        http://www.housekeeping.unicamp.br/Housekeeping_TranscriptsHuman.xlsx
+        
+        ## Displaying Shap Figures
+        
+        After reading in the data and filtering, you can build multi-classification model and generate shap figures:
+        
+        ```python
         Sample.explainMulti(
+            data,
             use_SMOTE=False,
             shap_output_directory=None, # output shap values to shap_output_directory
             nthread=48, # multi-thread
@@ -165,16 +174,12 @@ Description: # sctreeshap
         )
         ```
         
-        Build binary-classification model and generate shap figures:
+        or build binary-classification model and generate shap figures:
         
         ```python
-        Sample.setBranch('n70')
-        Sample.setDataDirectory('./nonneuron_full.pkl')
-        Sample.setFileType('pkl')
-        Sample.setDataSet(Sample.readData())
-        Sample.setCluster('Astro L1-2 FGFR3 GFAP')
-        
         Sample.explainBinary(
+            data,
+            cluster_name='Astro L1-2 FGFR3 GFAP',
             use_SMOTE=False,
             shap_output_directory=None, # output shap values to shap_output_directory
             nthread=48, # multi-thread

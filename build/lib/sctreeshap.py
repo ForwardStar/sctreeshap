@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 import time
 import threading
@@ -324,6 +324,7 @@ class sctreeshap:
             return data[data['cluster'].isin(cluster_set)]
         if branch_name != None:
             clusters = self.list(branch_name)
+            data = data[data['cluster'].isin(clusters)]
             if clusters == -1:
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
                 return -1
@@ -517,7 +518,7 @@ class sctreeshap:
             print("     Drawing decision plot..")
             plt.figure(4)
             plt.title("Target Cluster: " + cluster_name)
-            y_pred = pd.DataFrame(y_pred).to_np()
+            y_pred = pd.DataFrame(y_pred).to_numpy()
             x_target = x_test[y_pred == 1]
             shap_values = self.__explainer.shap_values(x_target, approximate=True)
             shap.decision_plot(self.__explainer.expected_value, shap_values, x_target, link='logit', show=False)
@@ -658,7 +659,7 @@ class sctreeshap:
             index = 1
             for key in self.clusterDict.keys():
                 print("         Drawing cluster " + key + "...")
-                y_pred_i = y_pred[y_pred.columns[self.clusterDict[key]]].to_np()
+                y_pred_i = y_pred[y_pred.columns[self.clusterDict[key]]].to_numpy()
                 x_target = x_test[y_pred_i >= 0.9]
                 if len(x_target) == 0:
                     print("         \033[1;33;40mWarning:\033[0m empty dataset, skipped. Try setting 'use_SMOTE=True'.")
