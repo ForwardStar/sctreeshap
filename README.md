@@ -10,7 +10,15 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## Installing treeshap
+## v0.2.0 Update
+
+- Implement the detailed api reference (See API References part).
+- You can now automatically filter genes before building the model.
+- Remove parameter "filetype", now recognize .csv file and .pkl file automatically.
+
+We are developing our documentations in the near future, which will include examples and the interface of the class.
+
+## Installing sctreeshap
 
 Directly install by pip:
 
@@ -170,5 +178,20 @@ Sample.explainBinary(
         "decision_plot": False
     }
 )
+```
+
+## API References
+
+For more functions, you can refer to the documentations by printing the object out:
+
+```python
+print(Sample.help('documentations'))
+```
+
+and query the details of a function by:
+
+```python
+function_name = 'readData' # Can be whatever the function in the class
+print(Sample.help(function_name))
 ```
 
