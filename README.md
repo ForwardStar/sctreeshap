@@ -10,12 +10,11 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.3.0 Update
+## v0.4.0 Update
 
 - Bug fixes.
-- README updated.
-- Function 'list' is renamed to 'listBranch'; function 'find' is renamed to 'findCluster'.
-- Add function 'mergeBranch', which can merge all clusters under a given branch into one. Run "sctreeshap.help('mergeBranch')" for details if needed.
+- The api of explainBinary and explainMulti is modified: removed "shap_output_directory"; an extra key "max_display" has been packed into shap_params. "max_display" can be used to determine how many genes you want to display in shap figures.
+- Add function 'getShapValues' and 'getTopGenes': getShapValues() to derive shap values after explainBinary or explainMulti; getTopGenes() to derive the most "important" genes shown in shap figures.
 
 ## Installing sctreeshap
 
@@ -160,9 +159,9 @@ After reading in the data and filtering, you can build multi-classification mode
 Sample.explainMulti(
     data,
     use_SMOTE=False,
-    shap_output_directory=None, # output shap values to shap_output_directory
     nthread=48, # multi-thread
     shap_params={
+        "max_display": 10,
         "bar_plot": True,
         "beeswarm": False,
         "decision_plot": False
@@ -177,9 +176,9 @@ Sample.explainBinary(
     data,
     cluster_name='Astro L1-2 FGFR3 GFAP',
     use_SMOTE=False,
-    shap_output_directory=None, # output shap values to shap_output_directory
     nthread=48, # multi-thread
     shap_params={
+        "max_display": 10,
         "bar_plot": True,
         "beeswarm": True,
         "force_plot": False,
@@ -191,7 +190,7 @@ Sample.explainBinary(
 
 ## API References
 
-For more functions, you can refer to the documentations by printing the object out:
+For more functions, you can refer to the documentations by printing the help function out:
 
 ```python
 print(Sample.help('documentations'))

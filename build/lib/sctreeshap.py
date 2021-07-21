@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 import time
 import threading
@@ -104,11 +104,15 @@ class sctreeshap:
         self.__XGBClassifer = None
         self.__explainer = None
         self.__shapValues = None
+        self.__maxDisplay = None
+        self.__topGenes = None
+        self.__featureNames = None
         self.__TreeNode = None
         self.__parent = {}
         self.__root = None
         self.__visited = []
         self.__shapParamsBinary = {
+            "max_display": 10,
             "bar_plot": True,
             "beeswarm": True,
             "force_plot": False,
@@ -116,6 +120,7 @@ class sctreeshap:
             "decision_plot": False
         }
         self.__shapParamsMulti = {
+            "max_display": 10,
             "bar_plot": True,
             "beeswarm": False,
             "decision_plot": False
@@ -148,6 +153,18 @@ class sctreeshap:
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.setDataSet()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
             return -1
         self.__dataSet = data
+        return None
+    
+    # Set default feature names.
+    # feature_names: ndarray, list or tuple.
+    def setFeatureNames(self, feature_names=None):
+        if feature_names == None:
+            self.__featureNames = None
+            return None
+        if not isinstance(feature_names, np.ndarray) and not isinstance(feature_names, list) and not isinstance(feature_names, tuple):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setFeatureNames()' (in file '" + __file__ + "') receives an invalid feature_names dataset of wrong type (must be 'ndarray', 'list' or 'tuple').")
+            return -1
+        self.__featureNames = np.array(feature_names)
         return None
     
     # Set default branch.
@@ -192,6 +209,7 @@ class sctreeshap:
     def setShapParamsBinary(self, shap_params=None):
         if shap_params is None:
             self.__shapParamsBinary = {
+                "max_display": 10,
                 "bar_plot": True,
                 "beeswarm": True,
                 "force_plot": False,
@@ -211,6 +229,7 @@ class sctreeshap:
     def setShapParamsMulti(self, shap_params=None):
         if shap_params is None:
             self.__shapParamsMulti = {
+                "max_display": 10,
                 "bar_plot": True,
                 "beeswarm": False,
                 "decision_plot": False
@@ -236,6 +255,37 @@ class sctreeshap:
     # Return: ndarray.
     def getShapValues(self):
         return self.__shapValues
+    
+    # Get top genes of max absolute mean shap values.
+    # max_display: int, the number of top genes you want to derive.
+    # shap_values: list or ndarray.
+    # feature_names: ndarray, list or tuple.
+    # Return: ndarray.
+    def getTopGenes(self, max_display=None, shap_values=None, feature_names=None):
+        if shap_values == None:
+            shap_values = self.__shapValues
+        if feature_names == None:
+            feature_names = self.__featureNames
+        if not isinstance(feature_names, np.ndarray) and not isinstance(feature_names, list) and not isinstance(feature_names, tuple):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') receives an invalid feature_names dataset of wrong type (must be 'ndarray', 'list' or 'tuple').")
+            return -1
+        if not isinstance(max_display, int):
+            max_display = self.__maxDisplay
+        if isinstance(shap_values, list):
+            # Multi-classification
+            feature_order = np.argsort(np.sum(np.mean(np.abs(shap_values), axis=1), axis=0))
+            feature_order = feature_order[-min(max_display, len(feature_order)):][::-1]
+            feature_names = [feature_names[i] for i in feature_order]
+            return np.array(feature_names)
+        elif isinstance(shap_values, np.ndarray):
+            # Binary classification
+            feature_order = np.argsort(np.sum(np.abs(shap_values), axis=0))
+            feature_order = feature_order[-min(max_display, len(feature_order)):][::-1]
+            feature_names = [feature_names[i] for i in feature_order]
+            return np.array(feature_names)
+        else:
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') cannot recognize the format of shap_values.")
+            return -1
 
     # Find which branch a given cluster is in.
     # cluster_name: str, representing the cluster's name, e.g. "Exc L5-6 THEMIS FGF10".
@@ -338,7 +388,7 @@ class sctreeshap:
     
     # Merge all clusters under a given branch.
     # data: AnnData or DataFrame;
-    # branch_name: str;
+    # branch_name: str, the clusters under the branch will merge, relabelled as the branch_name;
     # Return: AnnData or DataFrame.
     def mergeBranch(self, data=None, branch_name=None):
         isAnnData = False
@@ -438,10 +488,9 @@ class sctreeshap:
     # data: an AnnData or DataFrame object;
     # cluster_name: str, the target cluster;
     # use_SMOTE: bool, indicates whether to use smote to oversample the data;
-    # shap_output_directory: str, file to be rewrited as a csv of shap values;
     # nthread: int, the number of running threads;
     # shap_params: dictionary, the shap plot parameters, indicating which kinds of figure to plot.
-    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, shap_output_directory=None, nthread=32, shap_params=None):
+    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, nthread=32, shap_params=None):
         def showProcess():
             print(self.__waitingMessage, end="  ")
             while not self.__isFinished:
@@ -512,48 +561,38 @@ class sctreeshap:
         thread_buildShap.join()
         time.sleep(0.2)
 
-        if shap_output_directory != None:
-            # Generating shap values file
-            self.__waitingMessage = "Writing shap values to '" + shap_output_directory + "'.."
-            self.__isFinished = False
-            thread_writeShapValues = threading.Thread(target=showProcess)
-            thread_writeShapValues.start()
-            shap_values_file = pd.DataFrame(self.__shapValues, index=list(data.index.values))
-            shap_values_file.columns = list(x.columns.values)
-            shap_values_file.to_csv(shap_output_directory)
-            self.__isFinished = True
-            thread_writeShapValues.join()
-        else:
-            print("No directory detected. Skipped shap values output.")
-
         # Generating shap figures
         print("Generating shap figures..")
         if shap_params == None:
             shap_params = self.__shapParamsBinary
-        if "bar_plot" not in shap_params or shap_params["bar_plot"]:
+        if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
+            shap_params["max_display"] = 10
+        self.__maxDisplay = shap_params["max_display"]
+        self.__featureNames = x.columns.values
+        if "bar_plot" in shap_params and shap_params["bar_plot"]:
             print("     Drawing bar plot..")
             plt.figure(1)
             plt.title("Target Cluster: " + cluster_name)
-            shap.summary_plot(self.__shapValues, x_test, feature_names=x.columns.values, max_display=10, plot_type='bar', show=False)
+            shap.summary_plot(self.__shapValues, x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, plot_type='bar', show=False)
             plt.show()
-        if "beeswarm" not in shap_params or shap_params["beeswarm"]:
+        if "beeswarm" in shap_params and shap_params["beeswarm"]:
             print("     Drawing beeswarm plot..")
             plt.figure(2)
             plt.title("Target Cluster: " + cluster_name)
-            shap.summary_plot(self.__shapValues, x_test, feature_names=x.columns.values, max_display=10)
+            shap.summary_plot(self.__shapValues, x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay)
             plt.show()
-        if "force_plot" not in shap_params or shap_params["force_plot"]:
+        if "force_plot" in shap_params and shap_params["force_plot"]:
             print("     Drawing force plot..")
             print("     \033[1;33;40mWarning:\033[0m: force plot has not been stably supported yet.")
             shap.initjs()
-            shap.plots.force(self.__explainer.expected_value, self.__shapValues, x_test, feature_names=x.columns.values, show=False)
-        if "heat_map" not in shap_params or shap_params["heat_map"]:
+            shap.plots.force(self.__explainer.expected_value, self.__shapValues, x_test, feature_names=self.__featureNames, show=False)
+        if "heat_map" in shap_params and shap_params["heat_map"]:
             print("     Drawing heat map..")
             plt.figure(3)
             plt.title("Target Cluster: " + cluster_name)
             shap.plots.heatmap(self.__explainer(x_test), show=False)
             plt.show()
-        if "decision_plot" not in shap_params or shap_params["decision_plot"]:
+        if "decision_plot" in shap_params and shap_params["decision_plot"]:
             print("     Drawing decision plot..")
             plt.figure(4)
             plt.title("Target Cluster: " + cluster_name)
@@ -566,10 +605,9 @@ class sctreeshap:
     # Do multi-classification and generate shap figures.
     # data: an AnnData or DataFrame object;
     # use_SMOTE: bool, indicates whether to use smote to oversample the data;
-    # shap_output_directory: str, file to be rewrited as a csv of shap values;
     # nthread: int, the number of running threads;
     # shap_params: dictionary, the shap plot parameters, indicating which kinds of figure to plot.
-    def explainMulti(self, data=None, use_SMOTE=False, shap_output_directory=None, nthread=32, shap_params=None):
+    def explainMulti(self, data=None, use_SMOTE=False, nthread=32, shap_params=None):
         def showProcess():
             print(self.__waitingMessage, end="  ")
             while not self.__isFinished:
@@ -648,30 +686,20 @@ class sctreeshap:
         thread_buildShap.join()
         time.sleep(0.2)
 
-        if shap_output_directory != None:
-            # Generating shap values file
-            self.__waitingMessage = "Writing shap values to '" + shap_output_directory + "'.."
-            self.__isFinished = False
-            thread_writeShapValues = threading.Thread(target=showProcess)
-            thread_writeShapValues.start()
-            shap_values_file = pd.DataFrame(self.__shapValues, index=list(data.index.values))
-            shap_values_file.columns = list(x.columns.values)
-            shap_values_file.to_csv(shap_output_directory)
-            self.__isFinished = True
-            thread_writeShapValues.join()
-        else:
-            print("No directory detected. Skipped shap values output.")
-
         # Generating shap figures
         print("Generating shap figures..")
         if shap_params == None:
             shap_params = self.__shapParamsMulti
-        if "bar_plot" not in shap_params or shap_params["bar_plot"]:
+        if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
+            shap_params["max_display"] = 10
+        self.__maxDisplay = shap_params["max_display"]
+        self.__featureNames = x.columns.values
+        if "bar_plot" in shap_params and shap_params["bar_plot"]:
             print("     Drawing bar plot..")
             plt.figure(1)
-            shap.summary_plot(self.__shapValues, x_test, feature_names=x.columns.values, max_display=10, show=False)
+            shap.summary_plot(self.__shapValues, x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
             plt.show()
-        if "beeswarm" not in shap_params or shap_params["beeswarm"]:
+        if "beeswarm" in shap_params and shap_params["beeswarm"]:
             print("     Drawing beeswarm plot..")
             print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
             print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
@@ -683,11 +711,11 @@ class sctreeshap:
                 print("         Drawing cluster " + key + "...")
                 figure_sub = figure.add_subplot(rows, cols, index)
                 figure_sub.set_title("Target Cluster: " + key, fontsize=36)
-                shap.summary_plot(self.__shapValues[self.clusterDict[key]], x_test, feature_names=x.columns.values, max_display=10, show=False)
+                shap.summary_plot(self.__shapValues[self.clusterDict[key]], x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
                 index += 1
             figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
             plt.show()
-        if "decision_plot" not in shap_params or shap_params["decision_plot"]:
+        if "decision_plot" in shap_params and shap_params["decision_plot"]:
             print("     Drawing decision plot..")
             print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
             print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
@@ -741,6 +769,7 @@ class sctreeshap:
             getClassifier = "getClassifier(): get XGBClassifier of the last job (available after 'explainBinary()' or 'explainMulti()')."
             getExplainer = "getExplainer(): get shap explainer of the last job (available after 'explainBinary()' or 'explainMulti()')."
             getShapValues = "getShapValues(): get shap values of the last job (available after 'explainBinary()' or 'explainMulti()')."
+            getTopGenes = "getTopGenes(): get top genes of max absolute mean shap values."
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + documentations + ' ' * (num_of_spaces - len(documentations) + 14) + '  |\n' \
@@ -770,6 +799,8 @@ class sctreeshap:
                 + '|  ' + analysis + ' ' * (num_of_spaces - len(analysis) + 14) + '  |\n' \
                 + '|  ' + explainBinary + ' ' * (num_of_spaces - len(explainBinary)) + '  |\n' \
                 + '|  ' + explainMulti + ' ' * (num_of_spaces - len(explainMulti)) + '  |\n' \
+                + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
+                + '|  ' + getTopGenes + ' ' * (num_of_spaces - len(getTopGenes)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'sctreeshap':
             function = '\033[1;37;40msctreeshap.sctreeshap\033[0m'
@@ -1009,6 +1040,7 @@ class sctreeshap:
             description =                    'Description: merge all clusters under a given branch.'
             data =                          'Parameters:  data: AnnData or DataFrame'
             branch_name =                   '             branch_name: str'
+            branch_name_description1 =      '             |  The clusters under the branch will merge, relabelled as the branch_name.'
             return_description =            'Return:      DataFrame or AnnData.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
@@ -1020,6 +1052,7 @@ class sctreeshap:
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
                 + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
+                + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
@@ -1095,21 +1128,21 @@ class sctreeshap:
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'explainBinary':
             function = '\033[1;37;40msctreeshap.sctreeshap.explainBinary\033[0m'
-            api = 'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, shap_output_directory=None,'
-            api1 = 'nthread=32, shap_params=None)'
+            api = 'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, nthread=32, '
+            api1 = 'shap_params=None)'
             description =                    'Description: do binary classification and generate shap figures.'
             data =                          'Parameters:  data: DataFrame or AnnData'
             cluster_name =                  '             cluster_name: str'
             cluster_name_description1 =     '             |  The target cluster for classification.'
             use_SMOTE =                     '             use_SMOTE: bool'
             use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
-            shap_output_directory =         '             shap_output_directory: str'
-            shap_output_directory_description1 = '             |  A .csv file for shapley values output.'
             nthread =                       '             nthread: int'
             nthread_description1 =          '             |  The number of running threads.'
             shap_params =                   '             shap_params: dictionary'
-            shap_params_description1 =      '             |  Keys: ["bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-            shap_params_description2 =      '             |  Values: a list or a tuple of bool to indicate which kinds of shap figures to output.'
+            shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
+            shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
+            shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
+            shap_params_description4 =      '             |  output this kind of shap figures.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1124,48 +1157,46 @@ class sctreeshap:
                 + '|  ' + cluster_name_description1 + ' ' * (num_of_spaces - len(cluster_name_description1)) + '  |\n' \
                 + '|  ' + use_SMOTE + ' ' * (num_of_spaces - len(use_SMOTE)) + '  |\n' \
                 + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
-                + '|  ' + shap_output_directory + ' ' * (num_of_spaces - len(shap_output_directory)) + '  |\n' \
-                + '|  ' + shap_output_directory_description1 + ' ' * (num_of_spaces - len(shap_output_directory_description1)) + '  |\n' \
                 + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
                 + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
                 + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
                 + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
+                + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
+                + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'explainMulti':
             function = '\033[1;37;40msctreeshap.sctreeshap.explainMulti\033[0m'
-            api = 'sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, shap_output_directory=None, nthread=32,'
-            api1 = 'shap_params=None)'
+            api = 'sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, nthread=32, shap_params=None)'
             description =                    'Description: do multi-classification and generate shap figures.'
             data =                          'Parameters:  data: DataFrame or AnnData'
             use_SMOTE =                     '             use_SMOTE: bool'
             use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
-            shap_output_directory =         '             shap_output_directory: str'
-            shap_output_directory_description1 = '             |  A .csv file for shapley values output.'
             nthread =                       '             nthread: int'
             nthread_description1 =          '             |  The number of running threads.'
             shap_params =                   '             shap_params: dictionary'
-            shap_params_description1 =      '             |  Keys: ["bar_plot", "beeswarm", "decision_plot"]'
-            shap_params_description2 =      '             |  Values: a list or a tuple of bool to indicate which kinds of shap figures to output.'
+            shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
+            shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
+            shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
+            shap_params_description4 =      '             |  output this kind of shap figures.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                + '|  ' + api1 + ' ' * (num_of_spaces - len(api1)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
                 + '|  ' + use_SMOTE + ' ' * (num_of_spaces - len(use_SMOTE)) + '  |\n' \
                 + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
-                + '|  ' + shap_output_directory + ' ' * (num_of_spaces - len(shap_output_directory)) + '  |\n' \
-                + '|  ' + shap_output_directory_description1 + ' ' * (num_of_spaces - len(shap_output_directory_description1)) + '  |\n' \
                 + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
                 + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
                 + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
                 + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
+                + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
+                + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd != None:
             return "Function " + cmd + " not found!"
@@ -1203,6 +1234,7 @@ class sctreeshap:
                     getClassifier = "getClassifier(): get XGBClassifier of the last job (available after 'explainBinary()' or 'explainMulti()')."
                     getExplainer = "getExplainer(): get shap explainer of the last job (available after 'explainBinary()' or 'explainMulti()')."
                     getShapValues = "getShapValues(): get shap values of the last job (available after 'explainBinary()' or 'explainMulti()')."
+                    getTopGenes = "getTopGenes(): get top genes of max absolute mean shap values."
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + documentations + ' ' * (num_of_spaces - len(documentations) + 14) + '  |\n' \
@@ -1234,7 +1266,8 @@ class sctreeshap:
                         + '|  ' + explainMulti + ' ' * (num_of_spaces - len(explainMulti)) + '  |\n' \
                         # + '|  ' + getClassifier + ' ' * (num_of_spaces - len(getClassifier)) + '  |\n' \
                         # + '|  ' + getExplainer + ' ' * (num_of_spaces - len(getExplainer)) + '  |\n' \
-                        # + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
+                        + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
+                        + '|  ' + getTopGenes + ' ' * (num_of_spaces - len(getTopGenes)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
                 elif cmd == 'sctreeshap':
                     function = '\033[1;37;40msctreeshap.sctreeshap\033[0m'
@@ -1474,6 +1507,7 @@ class sctreeshap:
                     description =                    'Description: merge all clusters under a given branch.'
                     data =                          'Parameters:  data: AnnData or DataFrame'
                     branch_name =                   '             branch_name: str'
+                    branch_name_description1 =      '             |  The clusters under the branch will merge, relabelled as the branch_name.'
                     return_description =            'Return:      DataFrame or AnnData.'
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
@@ -1485,6 +1519,7 @@ class sctreeshap:
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
                         + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
+                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
@@ -1560,21 +1595,21 @@ class sctreeshap:
                         + '|__' + '_' * num_of_spaces + '__|')
                 elif cmd == 'explainBinary':
                     function = '\033[1;37;40msctreeshap.sctreeshap.explainBinary\033[0m'
-                    api = 'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, shap_output_directory=None,'
-                    api1 = 'nthread=32, shap_params=None)'
+                    api = 'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, nthread=32, '
+                    api1 = 'shap_params=None)'
                     description =                    'Description: do binary classification and generate shap figures.'
                     data =                          'Parameters:  data: DataFrame or AnnData'
                     cluster_name =                  '             cluster_name: str'
                     cluster_name_description1 =     '             |  The target cluster for classification.'
                     use_SMOTE =                     '             use_SMOTE: bool'
                     use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
-                    shap_output_directory =         '             shap_output_directory: str'
-                    shap_output_directory_description1 = '             |  A .csv file for shapley values output.'
                     nthread =                       '             nthread: int'
                     nthread_description1 =          '             |  The number of running threads.'
                     shap_params =                   '             shap_params: dictionary'
-                    shap_params_description1 =      '             |  Keys: ["bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-                    shap_params_description2 =      '             |  Values: a list or a tuple of bool to indicate which kinds of shap figures to output.'
+                    shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
+                    shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
+                    shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
+                    shap_params_description4 =      '             |  output this kind of shap figures.'
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1589,48 +1624,46 @@ class sctreeshap:
                         + '|  ' + cluster_name_description1 + ' ' * (num_of_spaces - len(cluster_name_description1)) + '  |\n' \
                         + '|  ' + use_SMOTE + ' ' * (num_of_spaces - len(use_SMOTE)) + '  |\n' \
                         + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
-                        + '|  ' + shap_output_directory + ' ' * (num_of_spaces - len(shap_output_directory)) + '  |\n' \
-                        + '|  ' + shap_output_directory_description1 + ' ' * (num_of_spaces - len(shap_output_directory_description1)) + '  |\n' \
                         + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
                         + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
                         + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
                         + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                         + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
+                        + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
+                        + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
                 elif cmd == 'explainMulti':
                     function = '\033[1;37;40msctreeshap.sctreeshap.explainMulti\033[0m'
-                    api = 'sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, shap_output_directory=None, nthread=32,'
-                    api1 = 'shap_params=None)'
+                    api = 'sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, nthread=32, shap_params=None)'
                     description =                    'Description: do multi-classification and generate shap figures.'
                     data =                          'Parameters:  data: DataFrame or AnnData'
                     use_SMOTE =                     '             use_SMOTE: bool'
                     use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
-                    shap_output_directory =         '             shap_output_directory: str'
-                    shap_output_directory_description1 = '             |  A .csv file for shapley values output.'
                     nthread =                       '             nthread: int'
                     nthread_description1 =          '             |  The number of running threads.'
                     shap_params =                   '             shap_params: dictionary'
-                    shap_params_description1 =      '             |  Keys: ["bar_plot", "beeswarm", "decision_plot"]'
-                    shap_params_description2 =      '             |  Values: a list or a tuple of bool to indicate which kinds of shap figures to output.'
+                    shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
+                    shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
+                    shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
+                    shap_params_description4 =      '             |  output this kind of shap figures.'
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + api1 + ' ' * (num_of_spaces - len(api1)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
                         + '|  ' + use_SMOTE + ' ' * (num_of_spaces - len(use_SMOTE)) + '  |\n' \
                         + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
-                        + '|  ' + shap_output_directory + ' ' * (num_of_spaces - len(shap_output_directory)) + '  |\n' \
-                        + '|  ' + shap_output_directory_description1 + ' ' * (num_of_spaces - len(shap_output_directory_description1)) + '  |\n' \
                         + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
                         + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
                         + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
                         + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                         + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
+                        + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
+                        + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
                 else:
                     print("Unrecognized item:", cmd)
