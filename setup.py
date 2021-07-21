@@ -5,7 +5,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
   name="sctreeshap",
-  version="0.4.0",
+  version="0.4.1",
   author="Haoxuan Xie",
   author_email="haoxuanxie@link.cuhk.edu.cn",
   url="https://github.com/ForwardStar/sctreeshap",

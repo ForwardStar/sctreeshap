@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 import time
 import threading
@@ -34,7 +34,7 @@ class sctreeshap:
             if not isinstance(tree_arr[key], list) and not isinstance(tree_arr[key], tuple):
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
                 return False
-            if typeOfTree == None:
+            if typeOfTree is None:
                 if len(tree_arr[key]) > 1 and isinstance(tree_arr[key][1], int):
                     typeOfTree = "ParentPointer"
                 else:
@@ -59,12 +59,12 @@ class sctreeshap:
                         return False
             for key in tree_arr.keys():
                 if key not in self.__parent.keys():
-                    if self.__root == None:
+                    if self.__root is None:
                         self.__root = key
                     else:
                         print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
                         return False
-            if self.__root == None:
+            if self.__root is None:
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
                 return False
             if not self.__checkLoops(self.__root):
@@ -90,7 +90,7 @@ class sctreeshap:
     #                   tree_arr[str] should be a list or a tuple of a string and an int, representing the name of parent of the node and which child it is (from left to right, start from 0);
     #                   e.g. tree_arr['n2'] = ('n1', 0) represents a node named 'n2', who is the leftmost child of 'n1';
     #               note that you do not need to create a node for the root, since it does not have a parent.
-    # If tree_arr == None, then it does not construct a cluster tree.
+    # If tree_arr is None, then it does not construct a cluster tree.
     def __init__(self, tree_arr=None):
         self.numOfClusters = 0
         self.__clusterDict = {}
@@ -125,7 +125,7 @@ class sctreeshap:
             "beeswarm": False,
             "decision_plot": False
         }
-        if tree_arr == None:
+        if tree_arr is None:
             return None
         if not self.__checkClusterTree(tree_arr):
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') throws an exception.")
@@ -158,7 +158,7 @@ class sctreeshap:
     # Set default feature names.
     # feature_names: ndarray, list or tuple.
     def setFeatureNames(self, feature_names=None):
-        if feature_names == None:
+        if feature_names is None:
             self.__featureNames = None
             return None
         if not isinstance(feature_names, np.ndarray) and not isinstance(feature_names, list) and not isinstance(feature_names, tuple):
@@ -204,8 +204,8 @@ class sctreeshap:
         return None
     
     # Set default shap plots parameters of explainBinary().
-    # shap_params: dictionary, including five keys: ["bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"], which is defaultedly set as [True, True, False, False, False];
-    #           you can reset the dict to determine what kinds of figures to output.
+    # shap_params: dictionary, including five keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"], which is defaultedly set as [10, True, True, False, False, False];
+    #           you can reset the dict to determine what kinds of figures to output, and maximum number of genes you want to depict.
     def setShapParamsBinary(self, shap_params=None):
         if shap_params is None:
             self.__shapParamsBinary = {
@@ -224,8 +224,8 @@ class sctreeshap:
         return None
     
     # Set default shap plots parameters of explainMulti().
-    # shap_params: dictionary, including three keys: ["bar_plot", "beeswarm", "decision_plot"], which is defaultedly set as [True, False, False];
-    #           you can reset the dict to determine what kinds of figures to output.
+    # shap_params: dictionary, including three keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"], which is defaultedly set as [10, True, False, False];
+    #           you can reset the dict to determine what kinds of figures to output, and maximum number of genes you want to depict.
     def setShapParamsMulti(self, shap_params=None):
         if shap_params is None:
             self.__shapParamsMulti = {
@@ -262,9 +262,9 @@ class sctreeshap:
     # feature_names: ndarray, list or tuple.
     # Return: ndarray.
     def getTopGenes(self, max_display=None, shap_values=None, feature_names=None):
-        if shap_values == None:
+        if shap_values is None:
             shap_values = self.__shapValues
-        if feature_names == None:
+        if feature_names is None:
             feature_names = self.__featureNames
         if not isinstance(feature_names, np.ndarray) and not isinstance(feature_names, list) and not isinstance(feature_names, tuple):
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') receives an invalid feature_names dataset of wrong type (must be 'ndarray', 'list' or 'tuple').")
@@ -273,12 +273,20 @@ class sctreeshap:
             max_display = self.__maxDisplay
         if isinstance(shap_values, list):
             # Multi-classification
+            if shap_values[0].shape[1] != len(feature_names):
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') found unmatched shap_values and feature_names!")
+                return -1
+            max_display = min(max_display, len(feature_names))
             feature_order = np.argsort(np.sum(np.mean(np.abs(shap_values), axis=1), axis=0))
             feature_order = feature_order[-min(max_display, len(feature_order)):][::-1]
             feature_names = [feature_names[i] for i in feature_order]
             return np.array(feature_names)
         elif isinstance(shap_values, np.ndarray):
             # Binary classification
+            if shap_values.shape[1] != len(feature_names):
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') found unmatched shap_values and feature_names!")
+                return -1
+            max_display = min(max_display, len(feature_names))
             feature_order = np.argsort(np.sum(np.abs(shap_values), axis=0))
             feature_order = feature_order[-min(max_display, len(feature_order)):][::-1]
             feature_names = [feature_names[i] for i in feature_order]
@@ -289,7 +297,7 @@ class sctreeshap:
 
     # Find which branch a given cluster is in.
     # cluster_name: str, representing the cluster's name, e.g. "Exc L5-6 THEMIS FGF10".
-    #           if cluster_name == None: choose default cluster.
+    #           if cluster_name is None: choose default cluster.
     # Return: str, representing the path.
     def findCluster(self, cluster_name=None, root=None, path="ROOT"):
         if root is None:
@@ -297,9 +305,9 @@ class sctreeshap:
         if root is None:
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.findCluster()' (in file '" + __file__ + "') found an empty cluster tree!")
             return -1
-        if cluster_name == None:
+        if cluster_name is None:
             cluster_name = self.__cluster
-            if cluster_name == None:
+            if cluster_name is None:
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.findCluster()' (in file '" + __file__ + "') requires a target cluster name.")
                 return -1
         if root not in self.__TreeNode.keys():
@@ -316,7 +324,7 @@ class sctreeshap:
     
     # List the clusters of a given branch.
     # branch_name: str, representing the branch's name, e.g. "n48".
-    #           if branch_name == None: choose default branch; if default is still None, list all clusters.
+    #           if branch_name is None: choose default branch; if default is still None, list all clusters.
     # Return: list, including all cluster names under the branch.
     def listBranch(self, branch_name=None):
         if self.__root is None:
@@ -338,17 +346,17 @@ class sctreeshap:
 
     # Read cells from a given directory whose clusters are under a given branch.
     # data_directory: str, representing the directory of the file, can be a 'pkl' file or a 'csv' file, e.g. "~/xhx/python/neuron_full.pkl";
-    #           if data_directory == None: use default data directory.
+    #           if data_directory is None: use default data directory.
     # branch_name: str, representing the target branch, e.g. "n48";
-    #           if branch_name == None: choose default branch; if default is still None, read the whole dataset.
+    #           if branch_name is None: choose default branch; if default is still None, read the whole dataset.
     # cluster_set: a list or tuple of strings containing all target clusters to choose;
     # use_cluster_set: bool, indicating whether to activate choose from cluster_set;
     # output: can be 'DataFrame' or 'AnnData', which indicates return type.
     # Return: a DataFrame or AnnData object.
     def readData(self, data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, output='DataFrame'):
-        if data_directory == None:
+        if data_directory is None:
             data_directory = self.__dataDirectory
-        if not use_cluster_set and branch_name == None:
+        if not use_cluster_set and branch_name is None:
             branch_name = self.__branch
         data = None
         data_directory = data_directory.strip()
@@ -432,7 +440,7 @@ class sctreeshap:
     def DataFrame_to_AnnData(self, data=None):
         if data is None:
             data = self.__dataSet
-        if not isinstance(adata, pd.core.frame.DataFrame):
+        if not isinstance(data, pd.core.frame.DataFrame):
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.DataFrame_to_AnnData()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'DataFrame').")
             return -1
         obs = pd.DataFrame(data["cluster"], columns=["cluster"])
@@ -445,7 +453,7 @@ class sctreeshap:
     # Filter genes customly.
     # data: AnnData or DataFrame;
     # min_partial: float, to filter genes expressed in less than min_partial * 100% cells;
-    #           if min_partial == None: do not filter.
+    #           if min_partial is None: do not filter.
     # gene_set: list or tuple, to filter genes appeared in gene_set;
     # gene_prefix: list or tuple, to filter genes with prefix in gene_prefix.
     # Return: a DataFrame or AnnData object.
@@ -563,7 +571,7 @@ class sctreeshap:
 
         # Generating shap figures
         print("Generating shap figures..")
-        if shap_params == None:
+        if shap_params is None:
             shap_params = self.__shapParamsBinary
         if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
             shap_params["max_display"] = 10
@@ -688,7 +696,7 @@ class sctreeshap:
 
         # Generating shap figures
         print("Generating shap figures..")
-        if shap_params == None:
+        if shap_params is None:
             shap_params = self.__shapParamsMulti
         if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
             shap_params["max_display"] = 10
@@ -919,9 +927,9 @@ class sctreeshap:
             api = 'sctreeshap.sctreeshap.setShapParamsBinary(shap_params=None)'
             description =                   'Description: set default shap plots parameters of explainBinary().'
             shap_params =                          'Parameters:  shap_params: dictionary'
-            shap_params_description1 =             '             |  Keys: ["bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-            shap_params_description2 =             '             |  Default values: [True, True, False, False, False]'
-            shap_params_description3 =             '             |  Reset to determine what kinds of shap figures to output.'
+            shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
+            shap_params_description2 =             '             |  Default values: [10, True, True, False, False, False]'
+            shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -940,9 +948,9 @@ class sctreeshap:
             api = 'sctreeshap.sctreeshap.setShapParamsMulti(shap_params=None)'
             description =                   'Description: set default shap plots parameters of explainMulti().'
             shap_params =                          'Parameters:  shap_params: dictionary'
-            shap_params_description1 =             '             |  Keys: ["bar_plot", "beeswarm", "decision_plot"]'
-            shap_params_description2 =             '             |  Default values: [True, False, False]'
-            shap_params_description3 =             '             |  Reset to determine what kinds of shap figures to output.'
+            shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
+            shap_params_description2 =             '             |  Default values: [10, True, False, False]'
+            shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1198,6 +1206,53 @@ class sctreeshap:
                 + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
                 + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'getShapValues':
+            function = '\033[1;37;40msctreeshap.sctreeshap.getShapValues\033[0m'
+            api = 'sctreeshap.sctreeshap.getShapValues()'
+            description =                    "Description: get shap values of the last job (available after 'a.explainBinary()' or 'a.explainMulti()')."
+            return_description =             'Return:      ndarray.'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'getTopGenes':
+            function = '\033[1;37;40msctreeshap.sctreeshap.getTopGenes\033[0m'
+            api = 'sctreeshap.sctreeshap.getTopGenes(max_display=None, shap_values=None, feature_names=None)'
+            description =                    'Description: get top genes of max absolute mean shap values. (You can just simply call it without any '
+            description1 =                   '             parameters after explainBinary() or explainMulti()).'
+            max_display =                    'Parameters:  max_display: int'
+            max_display_description1 =       '             |  The the number of top genes you want to derive.'
+            shap_values =                    '             shap_values: list or ndarray'
+            shap_values_description1 =       '             |  This can be derived from getShapValues(), defaultly from last explainBinary()/explainMulti().'
+            feature_names =                  '             feature_names: ndarray, list or tuple'
+            feature_names_description1 =     '             |  The gene set (columns of cell-gene matrix), must correspond to order of shap_values, defaultly'
+            feature_names_description2 =     '             |  from last explainBinary()/explainMulti().'
+            return_description =             'Return:      ndarray, an ordered set of top genes of maximum absolute mean shap values.'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                + '|  ' + description1 + ' ' * (num_of_spaces - len(description1)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + max_display + ' ' * (num_of_spaces - len(max_display)) + '  |\n' \
+                + '|  ' + max_display_description1 + ' ' * (num_of_spaces - len(max_display_description1)) + '  |\n' \
+                + '|  ' + shap_values + ' ' * (num_of_spaces - len(shap_values)) + '  |\n' \
+                + '|  ' + shap_values_description1 + ' ' * (num_of_spaces - len(shap_values_description1)) + '  |\n' \
+                + '|  ' + feature_names + ' ' * (num_of_spaces - len(feature_names)) + '  |\n' \
+                + '|  ' + feature_names_description1 + ' ' * (num_of_spaces - len(feature_names_description1)) + '  |\n' \
+                + '|  ' + feature_names_description2 + ' ' * (num_of_spaces - len(feature_names_description2)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
         if cmd != None:
             return "Function " + cmd + " not found!"
         while True:
@@ -1386,9 +1441,9 @@ class sctreeshap:
                     api = 'sctreeshap.sctreeshap.setShapParamsBinary(shap_params=None)'
                     description =                   'Description: set default shap plots parameters of explainBinary().'
                     shap_params =                          'Parameters:  shap_params: dictionary'
-                    shap_params_description1 =             '             |  Keys: ["bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-                    shap_params_description2 =             '             |  Default values: [True, True, False, False, False]'
-                    shap_params_description3 =             '             |  Reset to determine what kinds of shap figures to output.'
+                    shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
+                    shap_params_description2 =             '             |  Default values: [10, True, True, False, False, False]'
+                    shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1407,9 +1462,9 @@ class sctreeshap:
                     api = 'sctreeshap.sctreeshap.setShapParamsMulti(shap_params=None)'
                     description =                   'Description: set default shap plots parameters of explainMulti().'
                     shap_params =                          'Parameters:  shap_params: dictionary'
-                    shap_params_description1 =             '             |  Keys: ["bar_plot", "beeswarm", "decision_plot"]'
-                    shap_params_description2 =             '             |  Default values: [True, False, False]'
-                    shap_params_description3 =             '             |  Reset to determine what kinds of shap figures to output.'
+                    shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
+                    shap_params_description2 =             '             |  Default values: [10, True, False, False]'
+                    shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1664,6 +1719,53 @@ class sctreeshap:
                         + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
                         + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
                         + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
+                        + '|__' + '_' * num_of_spaces + '__|')
+                elif cmd == 'getShapValues':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.getShapValues\033[0m'
+                    api = 'sctreeshap.sctreeshap.getShapValues()'
+                    description =                    "Description: get shap values of the last job (available after 'a.explainBinary()' or 'a.explainMulti()')."
+                    return_description =             'Return:      ndarray.'
+                    print( ' __' + '_' * num_of_spaces + '__ \n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                        + '|__' + '_' * num_of_spaces + '__|')
+                elif cmd == 'getTopGenes':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.getTopGenes\033[0m'
+                    api = 'sctreeshap.sctreeshap.getTopGenes(max_display=None, shap_values=None, feature_names=None)'
+                    description =                    'Description: get top genes of max absolute mean shap values. (You can just simply call it without any '
+                    description1 =                   '             parameters after explainBinary() or explainMulti()).'
+                    max_display =                    'Parameters:  max_display: int'
+                    max_display_description1 =       '             |  The the number of top genes you want to derive.'
+                    shap_values =                    '             shap_values: list or ndarray'
+                    shap_values_description1 =       '             |  This can be derived from getShapValues(), defaultly from last explainBinary()/explainMulti().'
+                    feature_names =                  '             feature_names: ndarray, list or tuple'
+                    feature_names_description1 =     '             |  The gene set (columns of cell-gene matrix), must correspond to order of shap_values, defaultly'
+                    feature_names_description2 =     '             |  from last explainBinary()/explainMulti().'
+                    return_description =             'Return:      ndarray, an ordered set of top genes of maximum absolute mean shap values.'
+                    print( ' __' + '_' * num_of_spaces + '__ \n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                        + '|  ' + description1 + ' ' * (num_of_spaces - len(description1)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + max_display + ' ' * (num_of_spaces - len(max_display)) + '  |\n' \
+                        + '|  ' + max_display_description1 + ' ' * (num_of_spaces - len(max_display_description1)) + '  |\n' \
+                        + '|  ' + shap_values + ' ' * (num_of_spaces - len(shap_values)) + '  |\n' \
+                        + '|  ' + shap_values_description1 + ' ' * (num_of_spaces - len(shap_values_description1)) + '  |\n' \
+                        + '|  ' + feature_names + ' ' * (num_of_spaces - len(feature_names)) + '  |\n' \
+                        + '|  ' + feature_names_description1 + ' ' * (num_of_spaces - len(feature_names_description1)) + '  |\n' \
+                        + '|  ' + feature_names_description2 + ' ' * (num_of_spaces - len(feature_names_description2)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
                 else:
                     print("Unrecognized item:", cmd)

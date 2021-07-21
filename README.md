@@ -10,11 +10,11 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.4.0 Update
+## v0.4.1 Update
 
-- Bug fixes.
-- The api of explainBinary and explainMulti is modified: removed "shap_output_directory"; an extra key "max_display" has been packed into shap_params. "max_display" can be used to determine how many genes you want to display in shap figures.
-- Add function 'getShapValues' and 'getTopGenes': getShapValues() to derive shap values after explainBinary or explainMulti; getTopGenes() to derive the most "important" genes shown in shap figures.
+- Bug fixes and stability improvement.
+- README updated.
+- Fill and correct missing contents in the help() function.
 
 ## Installing sctreeshap
 
@@ -149,6 +149,14 @@ The housekeeping genes of human can be downloaded from:
 
 http://www.housekeeping.unicamp.br/Housekeeping_TranscriptsHuman.xlsx
 
+You can merge clusters under a branch if needed:
+
+```python
+data = Sample.mergeBranch(data, 'n73')
+```
+
+This relabels cells with cluster ['OPC L1-6 PDGFRA', 'Astro L1-6 FGFR3 SLC14A1', 'Astro L1-2 FGFR3 GFAP'] as 'n73'.
+
 ## Displaying Shap Figures
 
 Note: this part is recommended to run in jupyter notebook.
@@ -174,7 +182,7 @@ or build binary-classification model and generate shap figures:
 ```python
 Sample.explainBinary(
     data,
-    cluster_name='Astro L1-2 FGFR3 GFAP',
+    cluster_name='Micro L1-3 TYROBP',
     use_SMOTE=False,
     nthread=48, # multi-thread
     shap_params={
@@ -187,6 +195,17 @@ Sample.explainBinary(
     }
 )
 ```
+
+## Get Shap Values and Marker Genes
+
+After running explainBinary() or explainMulti(), you can run:
+
+```python
+shap_values = Sample.getShapValues()
+marker_genes = Sample.getTopGenes()
+```
+
+to get shapley values and marker genes (with top absolute mean shap values).
 
 ## API References
 
