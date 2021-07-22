@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 import time
 import threading
@@ -25,15 +25,13 @@ class sctreeshap:
                 checkResult = self.__checkLoops(item)
         return checkResult
 
-    def __checkClusterTree(self, tree_arr):
+    def __buildClusterTree(self, tree_arr):
         if not isinstance(tree_arr, dict):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') requires a dict object as input.")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives " + str(type(tree_arr)) + ", expected <class 'dict'>.")
         typeOfTree = None
         for key in tree_arr.keys():
             if not isinstance(tree_arr[key], list) and not isinstance(tree_arr[key], tuple):
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
-                return False
+                raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (wrong format).")
             if typeOfTree is None:
                 if len(tree_arr[key]) > 1 and isinstance(tree_arr[key][1], int):
                     typeOfTree = "ParentPointer"
@@ -42,12 +40,10 @@ class sctreeshap:
             else:
                 if len(tree_arr[key]) > 1 and isinstance(tree_arr[key][1], int):
                     if typeOfTree == "ChildPointer":
-                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
-                        return False
+                        raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (wrong format).")
                 else:
                     if typeOfTree == "ParentPointer":
-                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (wrong format).")
-                        return False
+                        raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (wrong format).")
         if typeOfTree == "ChildPointer":
             self.__TreeNode = tree_arr
             for key in tree_arr.keys():
@@ -55,25 +51,20 @@ class sctreeshap:
                     if item not in self.__parent.keys():
                         self.__parent[item] = key
                     else:
-                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
-                        return False
+                        raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (not a tree structure).")
             for key in tree_arr.keys():
                 if key not in self.__parent.keys():
                     if self.__root is None:
                         self.__root = key
                     else:
-                        print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
-                        return False
+                        raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (not a tree structure).")
             if self.__root is None:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
-                return False
+                raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (not a tree structure).")
             if not self.__checkLoops(self.__root):
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives an invalid dict (not a tree structure).")
-                return False
+                raise ValueError("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives an invalid dict (not a tree structure).")
         else:
             # needs implementation
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') receives a valid but not yet supported format. Please contact the developer.")
-            return False
+            raise Exception("in method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "'), parameter 'tree_arr' receives a valid but not yet supported format. Please contact the developer.")
         return True
 
     # Construct a sctreeshap object with a given cluster tree.
@@ -127,9 +118,7 @@ class sctreeshap:
         }
         if tree_arr is None:
             return None
-        if not self.__checkClusterTree(tree_arr):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.sctreeshap()' (in file '" + __file__ + "') throws an exception.")
-            return -1
+        self.__buildClusterTree(tree_arr)
 
     # Set default data directory.
     # data_directory: a string representing the directory of the default input file.
@@ -138,8 +127,7 @@ class sctreeshap:
             self.__dataDirectory = None
             return None
         if not isinstance(data_directory, str):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setDataDirectory()' (in file '" + __file__ + "') receives an invalid data_directory of wrong type.")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.setDataDirectory()' (in file '" + __file__ + "'), parameter 'data_directory' receives " + str(type(data_directory)) + ", expected <class 'str'>.")
         self.__dataDirectory = data_directory
         return None
     
@@ -150,8 +138,7 @@ class sctreeshap:
             self.__dataSet = None
             return None
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setDataSet()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.setDataSet()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
         self.__dataSet = data
         return None
     
@@ -162,8 +149,7 @@ class sctreeshap:
             self.__featureNames = None
             return None
         if not isinstance(feature_names, np.ndarray) and not isinstance(feature_names, list) and not isinstance(feature_names, tuple):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setFeatureNames()' (in file '" + __file__ + "') receives an invalid feature_names dataset of wrong type (must be 'ndarray', 'list' or 'tuple').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.setFeatureNames()' (in file '" + __file__ + "'), parameter 'feature_names' receives " + str(type(feature_names)) + ", expected <class 'numpy.ndarray'>, <class 'list'> or <class 'tuple'>.")
         self.__featureNames = np.array(feature_names)
         return None
     
@@ -174,8 +160,7 @@ class sctreeshap:
             self.__branch = None
             return None
         if not isinstance(branch_name, str):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setBranch()' (in file '" + __file__ + "') receives an invalid branch_name of wrong type.")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.setBranch()' (in file '" + __file__ + "'), parameter 'branch_name' receives " + str(type(feature_names)) + ", expected <class 'str'>.")
         self.__branch = branch_name
         return None
     
@@ -186,7 +171,7 @@ class sctreeshap:
             self.__cluster = None
             return None
         if not isinstance(cluster_name, str):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setCluster()' (in file '" + __file__ + "') receives an invalid cluster_name of wrong type.")
+            raise TypeError("in method 'sctreeshap.sctreeshap.setCluster()' (in file '" + __file__ + "'), parameter 'cluster_name' receives " + str(type(cluster_name)) + ", expected <class 'str'>.")
             return -1
         self.__cluster = cluster_name
         return None
@@ -197,10 +182,9 @@ class sctreeshap:
         if cluster_set is None:
             self.__clusterSet = None
             return None
-        if not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setClusterSet()' (in file '" + __file__ + "') receives an invalid cluster_set of wrong type.")
-            return -1
-        self.__clusterSet = cluster_set
+        if not isinstance(cluster_set, np.ndarray) or not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple):
+            raise TypeError("in method 'sctreeshap.sctreeshap.setClusterSet()' (in file '" + __file__ + "'), parameter 'cluster_set' receives " + str(type(cluster_set)) + ", expected <class 'numpy.ndarray'>, <class 'list'> or <class 'list'>.")
+        self.__clusterSet = tuple(cluster_set)
         return None
     
     # Set default shap plots parameters of explainBinary().
@@ -218,8 +202,7 @@ class sctreeshap:
             }
             return None
         if not isinstance(shap_params, dict):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setShapParamsBinary()' (in file '" + __file__ + "') receives an invalid shap_params of wrong type.")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.setShapParamsBinary()' (in file '" + __file__ + "'), parameter 'shap_params' receives " + str(type(shap_params)) + ", expected <class 'dict'>.")
         self.__shapParamsBinary = shap_params
         return None
     
@@ -236,8 +219,7 @@ class sctreeshap:
             }
             return None
         if not isinstance(shap_params, dict):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.setShapParamsMulti()' (in file '" + __file__ + "') receives an invalid shap_params of wrong type.")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.setShapParamsMulti()' (in file '" + __file__ + "'), parameter 'shap_params' receives " + str(type(shap_params)) + ", expected <class 'dict'>.")
         self.__shapParamsMulti = shap_params
         return None
 
@@ -267,15 +249,13 @@ class sctreeshap:
         if feature_names is None:
             feature_names = self.__featureNames
         if not isinstance(feature_names, np.ndarray) and not isinstance(feature_names, list) and not isinstance(feature_names, tuple):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') receives an invalid feature_names dataset of wrong type (must be 'ndarray', 'list' or 'tuple').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.getTopGenes()' (in file '" + __file__ + "'), parameter 'feature_names' receives " + str(type(feature_names)) + ", expected <class 'numpy.ndarray'>, <class 'list'> or <class 'list'>.")
         if not isinstance(max_display, int):
             max_display = self.__maxDisplay
         if isinstance(shap_values, list):
             # Multi-classification
             if shap_values[0].shape[1] != len(feature_names):
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') found unmatched shap_values and feature_names!")
-                return -1
+                raise ValueError("in method 'sctreeshap.sctreeshap.getTopGenes()' (in file '" + __file__ + "'), found unmatched parameters 'shap_values' and 'feature_names'!")
             max_display = min(max_display, len(feature_names))
             feature_order = np.argsort(np.sum(np.mean(np.abs(shap_values), axis=1), axis=0))
             feature_order = feature_order[-min(max_display, len(feature_order)):][::-1]
@@ -284,16 +264,14 @@ class sctreeshap:
         elif isinstance(shap_values, np.ndarray):
             # Binary classification
             if shap_values.shape[1] != len(feature_names):
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') found unmatched shap_values and feature_names!")
-                return -1
+                raise ValueError("in method 'sctreeshap.sctreeshap.getTopGenes()' (in file '" + __file__ + "'), found unmatched parameters 'shap_values' and 'feature_names'!")
             max_display = min(max_display, len(feature_names))
             feature_order = np.argsort(np.sum(np.abs(shap_values), axis=0))
             feature_order = feature_order[-min(max_display, len(feature_order)):][::-1]
             feature_names = [feature_names[i] for i in feature_order]
             return np.array(feature_names)
         else:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.getTopGenes()' (in file '" + __file__ + "') cannot recognize the format of shap_values.")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.getTopGenes()' (in file '" + __file__ + "'), parameter 'shap_values' receives " + str(type(shap_values)) + ", expected <class 'numpy.ndarray'> or <class 'list'>.")
 
     # Find which branch a given cluster is in.
     # cluster_name: str, representing the cluster's name, e.g. "Exc L5-6 THEMIS FGF10".
@@ -303,13 +281,11 @@ class sctreeshap:
         if root is None:
             root = self.__root
         if root is None:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.findCluster()' (in file '" + __file__ + "') found an empty cluster tree!")
-            return -1
+            raise Exception("in method 'sctreeshap.sctreeshap.findCluster()' (in file '" + __file__ + "'), found an empty cluster tree!")
         if cluster_name is None:
             cluster_name = self.__cluster
             if cluster_name is None:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.findCluster()' (in file '" + __file__ + "') requires a target cluster name.")
-                return -1
+                raise ValueError("in method 'sctreeshap.sctreeshap.findCluster()' (in file '" + __file__ + "'), parameter 'cluster_name' not found.")
         if root not in self.__TreeNode.keys():
             return "Cluster " + cluster_name + " not found!"
         childs = self.__TreeNode[root]
@@ -328,8 +304,7 @@ class sctreeshap:
     # Return: list, including all cluster names under the branch.
     def listBranch(self, branch_name=None):
         if self.__root is None:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.listBranch()' (in file '" + __file__ + "') found an empty cluster tree!")
-            return -1
+            raise Exception("in method 'sctreeshap.sctreeshap.listBranch()' (in file '" + __file__ + "'), found an empty cluster tree!")
         if branch_name is None:
             branch_name = self.__branch
         try:
@@ -553,41 +528,27 @@ class sctreeshap:
         data = None
         data_directory = data_directory.strip()
         if file_type is None:
-            file_type = data_directory[-3:]
-        if file_type == 'csv':
-            try:
-                data = pd.read_csv(data_directory)
-            except:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
-                return -1
-        elif file_type == 'pkl':
-            try:
-                data = pd.read_pickle(data_directory)
-            except:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
-                return -1
-        elif file_type == 'loom':
-            try:
-                data = ad.read_loom(data_directory)
-            except:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
-                return -1
-        elif file_type == 'h5ad':
-            try:
-                data = ad.read_h5ad(data_directory)
-            except:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
-                return -1
+            file_type = data_directory
+        if not isinstance(file_type, str):
+            raise TypeError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'file_type' receives " + str(type(file_type)) + ", expected <class 'str'>.")
+        if file_type.endswith('csv'):
+            data = pd.read_csv(data_directory)
+        elif file_type.endswith('pkl'):
+            data = pd.read_pickle(data_directory)
+        elif file_type.endswith('loom'):
+            data = ad.read_loom(data_directory)
+        elif file_type.endswith('h5ad'):
+            data = ad.read_h5ad(data_directory)
+        elif file_type.endswith('xlsx'):
+            data = ad.read_excel(data_directory)
         else:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives an unrecognized file type.")
-            return -1
+            raise ValueError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'file_type' receives an unrecognized value: " + file_type + ", expected 'csv', 'pkl', 'loom', 'h5ad' or 'xlsx'.")
         data = self.selectBranch(data, branch_name, cluster_set, use_cluster_set)
-        if isinstance(data, int):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception.")
-            return -1
         if output is None:
             return data
-        elif output == "AnnData":
+        if not isinstance(output, str):
+            raise TypeError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'output' receives " + str(type(output)) + ", expected <class 'str'>.")
+        if output == "AnnData":
             if isinstance(data, pd.core.frame.DataFrame):
                 return self.DataFrame_to_AnnData(data)
             else:
@@ -598,8 +559,7 @@ class sctreeshap:
             else:
                 return data
         else:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise ValueError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'output' receives an unrecognized value: " + str(output) + ", expected 'AnnData' or 'DataFrame'.")
     
     # Select cells whose cluster is under the given branch or in given cluster set.
     # data: AnnData or DataFrame;
@@ -615,8 +575,7 @@ class sctreeshap:
         if branch_name is None:
             branch_name = self.__branch
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.selectBranch()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.selectBranch()' (in file '" + __file__ + "'), paramter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
         if isinstance(data, ad._core.anndata.AnnData):
             isAnnData = True
             data = self.AnnData_to_DataFrame(data)
@@ -627,9 +586,6 @@ class sctreeshap:
             data = data[data[cluster].isin(cluster_set)]
         elif branch_name != None:
             clusters = self.listBranch(branch_name)
-            if isinstance(clusters, int):
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.selectBranch()' (in file '" + __file__ + "') throws an exception.")
-                return -1
             data = data[data[cluster].isin(clusters)]
         if isAnnData:
             return self.DataFrame_to_AnnData(data)
@@ -647,16 +603,12 @@ class sctreeshap:
         if branch_name is None:
             branch_name = self.__branch
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.mergeBranch()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
         if isinstance(data, ad._core.anndata.AnnData):
             isAnnData = True
             data = self.AnnData_to_DataFrame(data)
         if branch_name != None:
             clusters = self.listBranch(branch_name)
-            if isinstance(clusters, int):
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') throws an exception.")
-                return -1
             cluster = data.columns.values[-1]
             data.loc[data[data[cluster].isin(clusters)].index.tolist(), cluster] = branch_name
         if isAnnData:
@@ -671,8 +623,7 @@ class sctreeshap:
         if adata is None:
             adata = self.__dataSet
         if not isinstance(adata, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.AnnData_to_DataFrame()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.AnnData_to_DataFrame()' (in file '" + __file__ + "'), parameter 'adata' receives " + str(type(adata)) + ", expected <class 'anndata._core.anndata.AnnData'>.")
         return pd.concat([pd.DataFrame(adata.X, columns=adata.var.index.values).reset_index(drop=True), adata.obs.reset_index(drop=True)], axis=1, join="inner")
 
     # Convert DataFrame to AnnData.
@@ -682,8 +633,7 @@ class sctreeshap:
         if data is None:
             data = self.__dataSet
         if not isinstance(data, pd.core.frame.DataFrame):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.DataFrame_to_AnnData()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.DataFrame_to_AnnData()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'>.")
         cluster = data.columns.values[-1]
         obs = pd.DataFrame(data[cluster], columns=cluster)
         obs[cluster] = obs[cluster].astype("category")
@@ -704,8 +654,7 @@ class sctreeshap:
         if data is None:
             data = self.__dataSet
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.geneFiltering()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.geneFiltering()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
         if isinstance(data, ad._core.anndata.AnnData):
             isAnnData = True
             data = self.AnnData_to_DataFrame(data)
@@ -744,7 +693,7 @@ class sctreeshap:
     def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, nthread=32, shap_params=None):
         def showProcess():
             print(self.__waitingMessage, end="  ")
-            while not self.__isFinished:
+            while self.__isFinished is False:
                 print('\b-', end='')
                 time.sleep(0.05)
                 print('\b\\', end='')
@@ -753,7 +702,10 @@ class sctreeshap:
                 time.sleep(0.05)
                 print('\b/', end='')
                 time.sleep(0.05)
-            print('\bdone')
+            if self.__isFinished is True:
+                print('\bdone')
+            else:
+                print('\berror')
 
         # Preprocessing data
         self.__waitingMessage = "Preprocessing data.."
@@ -763,11 +715,10 @@ class sctreeshap:
         if data is None:
             data = self.__dataSet
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            self.__isFinished = True
+            self.__isFinished = "Error"
             thread_preprocessData.join()
             time.sleep(0.2)
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.explainBinary()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.sctreeshap.explainBinary()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
         if isinstance(data, ad._core.anndata.AnnData):
             data = self.AnnData_to_DataFrame(data)
         cluster = data.columns.values[-1]
@@ -882,11 +833,10 @@ class sctreeshap:
         if data is None:
             data = self.__dataSet
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            self.__isFinished = True
+            self.__isFinished = "Error"
             thread_preprocessData.join()
             time.sleep(0.2)
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.explainMulti()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
-            return -1
+            raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
         if isinstance(data, ad._core.anndata.AnnData):
             data = self.AnnData_to_DataFrame(data)
         cluster = data.columns.values[-1]

@@ -10,10 +10,10 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.1 Update
+## v0.5.2 Update
 
 - Bug fixes.
-- Documentations updated.
+- Redesigned exception throws.
 
 ## Installing sctreeshap
 
