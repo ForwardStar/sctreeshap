@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 
 import time
 import threading
@@ -341,6 +341,7 @@ class sctreeshap:
             import socket
             from tqdm import tqdm
             from urllib.request import urlopen, Request
+            from urllib.error import URLError
             from pathlib import Path
             import tarfile
             import bz2
@@ -377,7 +378,7 @@ class sctreeshap:
                                     t.update(len(block))
                                     block = resp.read(blocksize)
                         break
-                    except socket.timeout:
+                    except (socket.timeout, URLError):
                         print("Timed out, retrying...")
                     except:
                         if path.is_file():
