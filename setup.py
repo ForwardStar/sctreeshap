@@ -5,7 +5,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
   name="sctreeshap",
-  version="0.4.1",
+  version="0.5.0",
   author="Haoxuan Xie",
   author_email="haoxuanxie@link.cuhk.edu.cn",
   url="https://github.com/ForwardStar/sctreeshap",
@@ -28,6 +28,9 @@ setuptools.setup(
                     'scikit-learn>=0.24.2',
                     'imblearn>=0.0',
                     'imbalanced-learn>=0.8.0',
-                    'xgboost>=1.4.2'],
+                    'xgboost>=1.4.2',
+                    'loompy>=3.0.6',
+                    'tqdm>=4.61.2',
+                    'pathlib>=1.0.1'],
   python_requires='>=3.8'
 )
