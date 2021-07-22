@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.4"
+__version__ = "0.5.5"
 
 import time
 import threading
@@ -335,13 +335,13 @@ class sctreeshap:
                 time.sleep(0.05)
             print('\bdone')
         import sys, os
-        data_directory = __file__[:-13] + "sctreeshap-" + __version__ + ".dist-info/"
-        if not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
+        data_directory = __file__[:-13] + "sctreeshap_data/"
+        if not os.path.exists(data_directory) or not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
             print("First time loading. Downloading the partitioned dataset... (427.6 MiB)")
-            import socket
+            if not os.path.exists(data_directory):
+                os.mkdir(data_directory)
             from tqdm import tqdm
             from urllib.request import urlopen, Request
-            from urllib.error import URLError
             from pathlib import Path
             import tarfile
             import bz2

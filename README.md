@@ -10,9 +10,9 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.4 Update
+## v0.5.5 Update
 
-- The patch in the last update actually does not work, and we fix it in this version.
+- Fix the bug which repeatedly downloads default dataset after each update.
 
 ## Installing sctreeshap
 
