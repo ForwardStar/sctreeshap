@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.5"
+__version__ = "0.5.6"
 
 import time
 import threading
@@ -318,7 +318,7 @@ class sctreeshap:
         for item in root:
             result = result + self.listBranch(item)
         return result
-    
+
     # Load default dataset and build default cluster tree.
     # Return: AnnData, the default dataset.
     def loadDefault(self):
@@ -360,9 +360,10 @@ class sctreeshap:
                 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
                 blocksize = 1024 * 8
                 blocknum = 0
+                retry_times = 0
                 while True:
                     try:
-                        with urlopen(Request(url, headers=headers), timeout=5) as resp:
+                        with urlopen(Request(url, headers=headers), timeout=3) as resp:
                             total = resp.info().get("content-length", None)
                             with tqdm(
                                 unit="B",
@@ -383,7 +384,14 @@ class sctreeshap:
                             path.unlink()
                         raise
                     except:
+                        retry_times += 1
+                        if retry_times >= 20:
+                            break
                         print("Timed out, retrying...")
+                if retry_times >= 20:
+                    if path.is_file():
+                        path.unlink()
+                    raise ConnectionError("bad internet connection, retry or check it.")
             
             self.__waitingMessage = "Merging the partitioned dataset..."
             self.__isFinished = False
@@ -510,6 +518,18 @@ class sctreeshap:
         thread_read.join()
         time.sleep(0.2)
         return data
+
+    # Clear downloaded files from loadDefault().
+    def clearDownload(self):
+        import os
+        data_directory = __file__[:-13] + "sctreeshap_data"
+        if os.path.exists(data_directory):
+            for root, dirs, files in os.walk(data_directory, topdown=False):
+                for name in files:
+                    os.remove(os.path.join(root, name))
+                for name in dirs:
+                    os.rmdir(os.path.join(root, name))
+            os.rmdir(data_directory)
 
     # Read cells from a given directory.
     # data_directory: PathLike, representing the directory of the file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file, e.g. "~/xhx/Python/neuron_full.pkl";
@@ -964,6 +984,7 @@ class sctreeshap:
             findCluster = 'findCluster(): find which branch a given cluster is in.'
             listBranch = 'listBranch(): list the clusters of a given branch.'
             loadDefault = 'loadDefault(): load default dataset and build default cluster tree.'
+            clearDownload = 'clearDownload(): clear downloaded files from loadDefault().'
             dataprocessing = '\033[1;37;40mData processing:\033[0m'
             readData = 'readData(): read cells from a given directory.'
             selectBranch = 'selectBranch(): select cells whose cluster is under the given branch or in given cluster set.'
@@ -997,6 +1018,7 @@ class sctreeshap:
                 + '|  ' + setShapParamsBinary + ' ' * (num_of_spaces - len(setShapParamsBinary)) + '  |\n' \
                 + '|  ' + setShapParamsMulti + ' ' * (num_of_spaces - len(setShapParamsMulti)) + '  |\n' \
                 + '|  ' + loadDefault + ' ' * (num_of_spaces - len(loadDefault)) + '  |\n' \
+                + '|  ' + clearDownload + ' ' * (num_of_spaces - len(clearDownload)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
                 + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
@@ -1220,6 +1242,18 @@ class sctreeshap:
                 + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'clearDownload':
+            function = '\033[1;37;40msctreeshap.sctreeshap.clearDownload\033[0m'
+            api = "sctreeshap.sctreeshap.clearDownload()"
+            description =                   'Description: clear downloaded files from loadDefault().'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'readData':
             function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
@@ -1529,6 +1563,7 @@ class sctreeshap:
                     findCluster = 'findCluster(): find which branch a given cluster is in.'
                     listBranch = 'listBranch(): list the clusters of a given branch.'
                     loadDefault = 'loadDefault(): load default dataset and build default cluster tree.'
+                    clearDownload = 'clearDownload(): clear downloaded files from loadDefault().'
                     dataprocessing = '\033[1;37;40mData processing:\033[0m'
                     readData = 'readData(): read cells from a given directory.'
                     selectBranch = 'selectBranch(): select cells whose cluster is under the given branch or in given cluster set.'
@@ -1562,6 +1597,7 @@ class sctreeshap:
                         + '|  ' + setShapParamsBinary + ' ' * (num_of_spaces - len(setShapParamsBinary)) + '  |\n' \
                         + '|  ' + setShapParamsMulti + ' ' * (num_of_spaces - len(setShapParamsMulti)) + '  |\n' \
                         + '|  ' + loadDefault + ' ' * (num_of_spaces - len(loadDefault)) + '  |\n' \
+                        + '|  ' + clearDownload + ' ' * (num_of_spaces - len(clearDownload)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
                         + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
@@ -1787,6 +1823,18 @@ class sctreeshap:
                         + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                        + '|__' + '_' * num_of_spaces + '__|')
+                elif cmd == 'clearDownload':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.clearDownload\033[0m'
+                    api = "sctreeshap.sctreeshap.clearDownload()"
+                    description =                   'Description: clear downloaded files from loadDefault().'
+                    print( ' __' + '_' * num_of_spaces + '__ \n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
                 elif cmd == 'readData':
                     function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
