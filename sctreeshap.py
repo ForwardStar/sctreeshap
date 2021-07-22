@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 
 import time
 import threading
@@ -378,12 +378,12 @@ class sctreeshap:
                                     t.update(len(block))
                                     block = resp.read(blocksize)
                         break
-                    except (socket.timeout, URLError):
-                        print("Timed out, retrying...")
-                    except:
+                    except KeyboardInterrupt:
                         if path.is_file():
                             path.unlink()
                         raise
+                    except:
+                        print("Timed out, retrying...")
             
             self.__waitingMessage = "Merging the partitioned dataset..."
             self.__isFinished = False

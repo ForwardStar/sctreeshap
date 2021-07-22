@@ -10,9 +10,9 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.3 Update
+## v0.5.4 Update
 
-- Minor fixes about data downloading.
+- The patch in the last update actually does not work, and we fix it in this version.
 
 ## Installing sctreeshap
 
