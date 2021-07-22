@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.0rc1"
+__version__ = "0.5.0"
 
 import time
 import threading
@@ -377,7 +377,7 @@ class sctreeshap:
                     print("Part " + part_num + " has been downloaded. Skipped.")
                     continue
                 else:
-                    print("Downloading part " + part_num)
+                    print("Downloading part " + part_num + "...")
                 path = Path(data_directory + "tmp/INPUT_DATA.h5ad.tar.bz2.part" + part_num)
                 url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/datasets/INPUT_DATA.h5ad.tar.bz2.part" + part_num
                 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
@@ -520,7 +520,7 @@ class sctreeshap:
             "n73": ('OPC L1-6 PDGFRA', 'n74'),
             "n74": ('Astro L1-6 FGFR3 SLC14A1', 'Astro L1-2 FGFR3 GFAP')
         }
-        self.__checkClusterTree(tree_arr)
+        self.__init__(tree_arr)
         self.__isFinished = True
         thread_build.join()
         time.sleep(0.2)
@@ -685,7 +685,7 @@ class sctreeshap:
             return -1
         obs = pd.DataFrame(data["cluster"], columns=["cluster"])
         obs["cluster"] = obs.cluster.astype("category")
-        data.drop(["cluster", "Unnamed: 0"], axis=1, inplace=True)
+        data.drop(["cluster"], axis=1, inplace=True)
         var = pd.DataFrame(index=data.columns.values)
         X = np.array(data)
         return ad.AnnData(np.array(data), obs=obs, var=var, dtype="float")

@@ -10,9 +10,10 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.0rc Update
+## v0.5.0 Update
 
-This is the pre-released version of v0.5.0.
+- Fix bugs in pre-release version.
+- You can now load the default dataset automatically, which was used in our paper.
 
 ## Installing sctreeshap
 
@@ -35,11 +36,19 @@ pip install sctreeshap
 An example dataset, human brain MTG cell type, can be analyzed as default:
 
 ```python
+# Run in Jupyter Notebook
 from sctreeshap import sctreeshap
-Sample = sctreeshap()
-data = Sample.loadDefault()
-data = Sample.selectBranch('n70')
-Sample.explainMulti(data)
+
+sample = sctreeshap()
+sample_dataset = sample.loadDefault()
+
+print(sample_dataset)
+
+## Select non-neuron branch
+sample_dataset = sample.selectBranch(sample_dataset, 'n70')
+
+## Run explainer
+sample.explainMulti(sample_dataset)
 ```
 
 The further details in the process are in the following documents.
