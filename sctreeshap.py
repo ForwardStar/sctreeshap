@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 import time
 import threading
@@ -362,7 +362,8 @@ class sctreeshap:
         import sys, os
         data_directory = __file__[:-13] + "sctreeshap-" + __version__ + ".dist-info/"
         if not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
-            print("First time loading. Downloading the partitions of dataset... (will need 427.6 MiB)")
+            print("First time loading. Downloading the partitioned dataset... (427.6 MiB)")
+            import socket
             from tqdm import tqdm
             from urllib.request import urlopen, Request
             from pathlib import Path
@@ -377,40 +378,38 @@ class sctreeshap:
                     print("Part " + part_num + " has been downloaded. Skipped.")
                     continue
                 else:
-                    print("Downloading part " + part_num + "...")
+                    print("Downloading: " + part_num + "/042")
                 path = Path(data_directory + "tmp/INPUT_DATA.h5ad.tar.bz2.part" + part_num)
                 url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/datasets/INPUT_DATA.h5ad.tar.bz2.part" + part_num
                 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
-                try:
-                    blocksize = 1024 * 8
-                    blocknum = 0
-                    while True:
-                        try:
-                            with urlopen(Request(url, headers=headers), timeout=5) as resp:
-                                total = resp.info().get("content-length", None)
-                                with tqdm(
-                                    unit="B",
-                                    unit_scale=True,
-                                    miniters=1,
-                                    unit_divisor=1024,
-                                    total=total if total is None else int(total),
-                                ) as t, path.open("wb") as f:
+                blocksize = 1024 * 8
+                blocknum = 0
+                while True:
+                    try:
+                        with urlopen(Request(url, headers=headers), timeout=5) as resp:
+                            total = resp.info().get("content-length", None)
+                            with tqdm(
+                                unit="B",
+                                unit_scale=True,
+                                miniters=1,
+                                unit_divisor=1024,
+                                total=total if total is None else int(total),
+                            ) as t, path.open("wb") as f:
+                                block = resp.read(blocksize)
+                                while block:
+                                    f.write(block)
+                                    blocknum += 1
+                                    t.update(len(block))
                                     block = resp.read(blocksize)
-                                    while block:
-                                        f.write(block)
-                                        blocknum += 1
-                                        t.update(len(block))
-                                        block = resp.read(blocksize)
-                            break
-                        except:
-                            print("Timed out, retrying...")
-                except (KeyboardInterrupt, Exception):
-                    # Make sure file doesn’t exist half-downloaded
-                    if path.is_file():
-                        path.unlink()
-                    raise
+                        break
+                    except socket.timeout:
+                        print("Timed out, retrying...")
+                    except:
+                        if path.is_file():
+                            path.unlink()
+                        raise
             
-            self.__waitingMessage = "Merging the partitions of dataset..."
+            self.__waitingMessage = "Merging the partitioned dataset..."
             self.__isFinished = False
             thread_merge = threading.Thread(target=showProcess)
             thread_merge.start()
@@ -429,7 +428,7 @@ class sctreeshap:
             thread_merge.join()
             time.sleep(0.2)
 
-            self.__waitingMessage = "Extracting the dataset... (will need 5.9 GiB)"
+            self.__waitingMessage = "Extracting the dataset... (5.9 GiB)"
             self.__isFinished = False
             thread_extract = threading.Thread(target=showProcess)
             thread_extract.start()
@@ -621,16 +620,17 @@ class sctreeshap:
         if isinstance(data, ad._core.anndata.AnnData):
             isAnnData = True
             data = self.AnnData_to_DataFrame(data)
+        cluster = data.columns.values[-1]
         if use_cluster_set:
             if (not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple)) or len(cluster_set) == 0:
                 cluster_set = self.__clusterSet
-            data = data[data['cluster'].isin(cluster_set)]
+            data = data[data[cluster].isin(cluster_set)]
         elif branch_name != None:
             clusters = self.listBranch(branch_name)
             if isinstance(clusters, int):
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.selectBranch()' (in file '" + __file__ + "') throws an exception.")
                 return -1
-            data = data[data['cluster'].isin(clusters)]
+            data = data[data[cluster].isin(clusters)]
         if isAnnData:
             return self.DataFrame_to_AnnData(data)
         else:
@@ -657,7 +657,8 @@ class sctreeshap:
             if isinstance(clusters, int):
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') throws an exception.")
                 return -1
-            data.loc[data[data['cluster'].isin(clusters)].index.tolist(), 'cluster'] = branch_name
+            cluster = data.columns.values[-1]
+            data.loc[data[data[cluster].isin(clusters)].index.tolist(), cluster] = branch_name
         if isAnnData:
             return self.DataFrame_to_AnnData(data)
         else:
@@ -683,9 +684,10 @@ class sctreeshap:
         if not isinstance(data, pd.core.frame.DataFrame):
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.DataFrame_to_AnnData()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'DataFrame').")
             return -1
-        obs = pd.DataFrame(data["cluster"], columns=["cluster"])
-        obs["cluster"] = obs.cluster.astype("category")
-        data.drop(["cluster"], axis=1, inplace=True)
+        cluster = data.columns.values[-1]
+        obs = pd.DataFrame(data[cluster], columns=cluster)
+        obs[cluster] = obs[cluster].astype("category")
+        data.drop([cluster], axis=1, inplace=True)
         var = pd.DataFrame(index=data.columns.values)
         X = np.array(data)
         return ad.AnnData(np.array(data), obs=obs, var=var, dtype="float")
@@ -720,8 +722,9 @@ class sctreeshap:
             data = data.drop(target, axis=1)
         if isinstance(min_partial, float):
             target = []
+            cluster = data.columns.values[-1]
             for idx, columns in data.iteritems():
-                if idx != 'cluster':
+                if idx != cluster:
                     expression = data[idx].to_numpy()
                     expression = expression[expression > 0]
                     if len(expression) / len(data) < min_partial:
@@ -767,8 +770,9 @@ class sctreeshap:
             return -1
         if isinstance(data, ad._core.anndata.AnnData):
             data = self.AnnData_to_DataFrame(data)
-        y = np.array(data['cluster'])
-        x = data.drop(columns=['cluster'])
+        cluster = data.columns.values[-1]
+        y = np.array(data[cluster])
+        x = data.drop(columns=[cluster])
         if use_SMOTE:
             oversample = SMOTE()
             x, y = oversample.fit_resample(x, y)
@@ -885,8 +889,9 @@ class sctreeshap:
             return -1
         if isinstance(data, ad._core.anndata.AnnData):
             data = self.AnnData_to_DataFrame(data)
-        y = np.array(data['cluster'])
-        x = data.drop(columns=['cluster'])
+        cluster = data.columns.values[-1]
+        y = np.array(data[cluster])
+        x = data.drop(columns=[cluster])
         if use_SMOTE:
             oversample = SMOTE()
             x, y = oversample.fit_resample(x, y)
@@ -1250,6 +1255,21 @@ class sctreeshap:
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'loadDefault':
+            function = '\033[1;37;40msctreeshap.sctreeshap.loadDefault\033[0m'
+            api = "sctreeshap.sctreeshap.loadDefault()"
+            description =                   'Description: load default dataset and build default cluster tree.'
+            return_description =                      'Return:      AnnData.'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'readData':
             function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
             api = "sctreeshap.sctreeshap.readData(data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, "
@@ -1289,6 +1309,36 @@ class sctreeshap:
                 + '|  ' + file_type_description1 + ' ' * (num_of_spaces - len(file_type_description1)) + '  |\n' \
                 + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
                 + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'selectBranch':
+            function = '\033[1;37;40msctreeshap.sctreeshap.selectBranch\033[0m'
+            api = "sctreeshap.sctreeshap.selectBranch(data, branch_name=None, cluster_set=[], use_cluster_set=False)"
+            description =                   'Description: select cells whose cluster is under the given branch or in given cluster set.'
+            data =                          'Parameters:  data: AnnData or DataFrame'
+            branch_name =                             '             branch_name: str'
+            branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
+            cluster_set =                             '             cluster_set: list or tuple'
+            cluster_set_description1 =                '             |  A list or tuple of strings representing the target clusters.'
+            use_cluster_set =                         '             use_cluster_set: bool'
+            use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
+            return_description =                      'Return:      AnnData or DataFrame.'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
+                + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
+                + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
+                + '|  ' + cluster_set + ' ' * (num_of_spaces - len(cluster_set)) + '  |\n' \
+                + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
+                + '|  ' + use_cluster_set + ' ' * (num_of_spaces - len(use_cluster_set)) + '  |\n' \
+                + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
@@ -1772,6 +1822,21 @@ class sctreeshap:
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')
+                elif cmd == 'loadDefault':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.loadDefault\033[0m'
+                    api = "sctreeshap.sctreeshap.loadDefault()"
+                    description =                   'Description: load default dataset and build default cluster tree.'
+                    return_description =                      'Return:      AnnData.'
+                    print( ' __' + '_' * num_of_spaces + '__ \n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                        + '|__' + '_' * num_of_spaces + '__|')
                 elif cmd == 'readData':
                     function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
                     api = "sctreeshap.sctreeshap.readData(data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, "
@@ -1811,6 +1876,36 @@ class sctreeshap:
                         + '|  ' + file_type_description1 + ' ' * (num_of_spaces - len(file_type_description1)) + '  |\n' \
                         + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
                         + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                        + '|__' + '_' * num_of_spaces + '__|')
+                elif cmd == 'selectBranch':
+                    function = '\033[1;37;40msctreeshap.sctreeshap.selectBranch\033[0m'
+                    api = "sctreeshap.sctreeshap.selectBranch(data, branch_name=None, cluster_set=[], use_cluster_set=False)"
+                    description =                   'Description: select cells whose cluster is under the given branch or in given cluster set.'
+                    data =                          'Parameters:  data: AnnData or DataFrame'
+                    branch_name =                             '             branch_name: str'
+                    branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
+                    cluster_set =                             '             cluster_set: list or tuple'
+                    cluster_set_description1 =                '             |  A list or tuple of strings representing the target clusters.'
+                    use_cluster_set =                         '             use_cluster_set: bool'
+                    use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
+                    return_description =                      'Return:      AnnData or DataFrame.'
+                    print( ' __' + '_' * num_of_spaces + '__ \n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
+                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
+                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
+                        + '|  ' + cluster_set + ' ' * (num_of_spaces - len(cluster_set)) + '  |\n' \
+                        + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
+                        + '|  ' + use_cluster_set + ' ' * (num_of_spaces - len(use_cluster_set)) + '  |\n' \
+                        + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                         + '|__' + '_' * num_of_spaces + '__|')

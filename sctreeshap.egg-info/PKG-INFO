@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sctreeshap
-Version: 0.5.0
+Version: 0.5.1
 Summary: sctreeshap: a cluster tree data structure, and for shap analysis
 Home-page: https://github.com/ForwardStar/sctreeshap
 Author: Haoxuan Xie
@@ -18,10 +18,10 @@ Description: # sctreeshap
         
         https://github.com/ForwardStar/sctreeshap
         
-        ## v0.5.0 Update
+        ## v0.5.1 Update
         
-        - Fix bugs in pre-release version.
-        - You can now load the default dataset automatically, which was used in our paper.
+        - Bug fixes.
+        - Documentations updated.
         
         ## Installing sctreeshap
         
@@ -59,7 +59,7 @@ Description: # sctreeshap
         sample.explainMulti(sample_dataset)
         ```
         
-        The further details in the process are in the following documents.
+        The further details in the process are discussed in the following documents.
         
         ## Data Input and Filtering
         

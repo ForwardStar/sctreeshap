@@ -10,10 +10,10 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.0 Update
+## v0.5.1 Update
 
-- Fix bugs in pre-release version.
-- You can now load the default dataset automatically, which was used in our paper.
+- Bug fixes.
+- Documentations updated.
 
 ## Installing sctreeshap
 
@@ -51,7 +51,7 @@ sample_dataset = sample.selectBranch(sample_dataset, 'n70')
 sample.explainMulti(sample_dataset)
 ```
 
-The further details in the process are in the following documents.
+The further details in the process are discussed in the following documents.
 
 ## Data Input and Filtering
 
