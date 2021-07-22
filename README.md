@@ -10,11 +10,9 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.4.1 Update
+## v0.5.0rc Update
 
-- Bug fixes and stability improvement.
-- README updated.
-- Fill and correct missing contents in the help() function.
+This is the pre-released version of v0.5.0.
 
 ## Installing sctreeshap
 
@@ -31,6 +29,20 @@ conda create -n sctreeshap python=3.8
 conda activate sctreeshap
 pip install sctreeshap
 ```
+
+## Example
+
+An example dataset, human brain MTG cell type, can be analyzed as default:
+
+```python
+from sctreeshap import sctreeshap
+Sample = sctreeshap()
+data = Sample.loadDefault()
+data = Sample.selectBranch('n70')
+Sample.explainMulti(data)
+```
+
+The further details in the process are in the following documents.
 
 ## Data Input and Filtering
 

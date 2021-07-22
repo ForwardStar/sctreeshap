@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.4.1"
+__version__ = "0.5.0rc1"
 
 import time
 import threading
@@ -343,56 +343,298 @@ class sctreeshap:
         for item in root:
             result = result + self.listBranch(item)
         return result
+    
+    # Load default dataset and build default cluster tree.
+    # Return: AnnData, the default dataset.
+    def loadDefault(self):
+        def showProcess():
+            print(self.__waitingMessage, end="  ")
+            while not self.__isFinished:
+                print('\b-', end='')
+                time.sleep(0.05)
+                print('\b\\', end='')
+                time.sleep(0.05)
+                print('\b|', end='')
+                time.sleep(0.05)
+                print('\b/', end='')
+                time.sleep(0.05)
+            print('\bdone')
+        import sys, os
+        data_directory = __file__[:-13] + "sctreeshap-" + __version__ + ".dist-info/"
+        if not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
+            print("First time loading. Downloading the partitions of dataset... (will need 427.6 MiB)")
+            from tqdm import tqdm
+            from urllib.request import urlopen, Request
+            from pathlib import Path
+            import tarfile
+            import bz2
+            if not os.path.exists(data_directory + "tmp"):
+                os.mkdir(data_directory + "tmp")
+            for i in range(1, 43):
+                part_num = str(i)
+                part_num = (3 - len(part_num)) * '0' + part_num
+                if os.path.isfile(data_directory + "tmp/INPUT_DATA.h5ad.tar.bz2.part" + part_num):
+                    print("Part " + part_num + " has been downloaded. Skipped.")
+                    continue
+                else:
+                    print("Downloading part " + part_num)
+                path = Path(data_directory + "tmp/INPUT_DATA.h5ad.tar.bz2.part" + part_num)
+                url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/datasets/INPUT_DATA.h5ad.tar.bz2.part" + part_num
+                headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
+                try:
+                    blocksize = 1024 * 8
+                    blocknum = 0
+                    while True:
+                        try:
+                            with urlopen(Request(url, headers=headers), timeout=5) as resp:
+                                total = resp.info().get("content-length", None)
+                                with tqdm(
+                                    unit="B",
+                                    unit_scale=True,
+                                    miniters=1,
+                                    unit_divisor=1024,
+                                    total=total if total is None else int(total),
+                                ) as t, path.open("wb") as f:
+                                    block = resp.read(blocksize)
+                                    while block:
+                                        f.write(block)
+                                        blocknum += 1
+                                        t.update(len(block))
+                                        block = resp.read(blocksize)
+                            break
+                        except:
+                            print("Timed out, retrying...")
+                except (KeyboardInterrupt, Exception):
+                    # Make sure file doesn’t exist half-downloaded
+                    if path.is_file():
+                        path.unlink()
+                    raise
+            
+            self.__waitingMessage = "Merging the partitions of dataset..."
+            self.__isFinished = False
+            thread_merge = threading.Thread(target=showProcess)
+            thread_merge.start()
+            path = Path(data_directory + "tmp/")
+            outfile = open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), 'wb')
+            files = os.listdir(path)
+            files.sort()
+            for file in files:
+                filepath = os.path.join(path, file)
+                infile = open(filepath, 'rb')
+                data = infile.read()
+                outfile.write(data)
+                infile.close()
+            outfile.close()
+            self.__isFinished = True
+            thread_merge.join()
+            time.sleep(0.2)
 
-    # Read cells from a given directory whose clusters are under a given branch.
-    # data_directory: str, representing the directory of the file, can be a 'pkl' file or a 'csv' file, e.g. "~/xhx/python/neuron_full.pkl";
+            self.__waitingMessage = "Extracting the dataset... (will need 5.9 GiB)"
+            self.__isFinished = False
+            thread_extract = threading.Thread(target=showProcess)
+            thread_extract.start()
+            archive = tarfile.open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), "r:bz2")
+            archive.extractall(data_directory)
+            archive.close()
+            self.__isFinished = True
+            thread_extract.join()
+            time.sleep(0.2)
+
+        self.__waitingMessage = "Building default cluster tree..."
+        self.__isFinished = False
+        thread_build = threading.Thread(target=showProcess)
+        thread_build.start()
+        tree_arr = {
+            "n1": ('n2', 'n70'),
+            "n2": ('n26', 'n3'),
+            "n3": ('n4', 'n21'),
+            "n4": ('n7', 'n5'),
+            "n5": ('Exc L5-6 THEMIS DCSTAMP', 'n6'),
+            "n6": ('Exc L5-6 THEMIS CRABP1', 'Exc L5-6 THEMIS FGF10'),
+            "n7": ('n8', 'Exc L4-5 FEZF2 SCN4B'),
+            "n8": ('n9', 'n12'),
+            "n9": ('n10', 'Exc L5-6 THEMIS C1QL3'),
+            "n10": ('n11', 'Exc L2-3 LINC00507 FREM3'),
+            "n11": ('Exc L2 LAMP5 LTK', 'Exc L2-4 LINC00507 GLP2R'),
+            "n12": ('n13', 'n17'),
+            "n13": ('Exc L3-4 RORB CARM1P1', 'n14'),
+            "n14": ('Exc L3-5 RORB ESR1', 'n15'),
+            "n15": ('Exc L3-5 RORB COL22A1', 'n16'),
+            "n16": ('Exc L3-5 RORB FILIP1L', 'Exc L3-5 RORB TWIST2'),
+            "n17": ('n19', 'n18'),
+            "n18": ('Exc L5-6 RORB TTC12', 'Exc L4-6 RORB C1R'),
+            "n19": ('Exc L4-5 RORB FOLH1B', 'n20'),
+            "n20": ('Exc L4-6 RORB SEMA3E', 'Exc L4-5 RORB DAPK2'),
+            "n21": ('Exc L4-6 FEZF2 IL26', 'n22'),
+            "n22": ('Exc L5-6 FEZF2 ABO', 'n23'),
+            "n23": ('n24', 'Exc L5-6 FEZF2 EFTUD1P1'),
+            "n24": ('n25', 'Exc L6 FEZF2 OR2T8'),
+            "n25": ('Exc L6 FEZF2 SCUBE1', 'Exc L5-6 SLC17A7 IL15'),
+            "n26": ('n27', 'n53'),
+            "n27": ('n48', 'n28'),
+            "n28": ('n41', 'n29'),
+            "n29": ('n37', 'n30'),
+            "n30": ('n31', 'n34'),
+            "n31": ('n32', 'Inh L1-3 VIP GGH'),
+            "n32": ('n33', 'Inh L1-3 VIP CCDC184'),
+            "n33": ('Inh L1-3 VIP CHRM2', 'Inh L2-4 VIP CBLN1'),
+            "n34": ('n36', 'n35'),
+            "n35": ('Inh L2-4 VIP SPAG17', 'Inh L1-4 VIP OPRM1'),
+            "n36": ('Inh L1-2 VIP LBH', 'Inh L2-3 VIP CASC6'),
+            "n37": ('n39', 'n38'),
+            "n38": ('Inh L2-5 VIP SERPINF1', 'Inh L2-5 VIP TYR'),
+            "n39": ('n40', 'Inh L1-2 VIP PCDH20'),
+            "n40": ('Inh L2-6 VIP QPCT', 'Inh L3-6 VIP HS3ST3A1'),
+            "n41": ('n43', 'n42'),
+            "n42": ('Inh L1-3 VIP ADAMTSL1', 'Inh L1-4 VIP PENK'),
+            "n43": ('n44', 'n46'),
+            "n44": ('n45', 'Inh L1-2 SST BAGE2'),
+            "n45": ('Inh L1 SST CHRNA4', 'Inh L1−2 GAD1 MC4R'),
+            "n46": ('Inh L1-3 PAX6 SYT6', 'n47'),
+            "n47": ('Inh L1-2 VIP TSPAN12', 'Inh L1-4 VIP CHRNA6'),
+            "n48": ('n49', 'n50'),
+            "n49": ('Inh L1-2 PAX6 CDH12', 'Inh L1-2 PAX6 TNFAIP8L3'),
+            "n50": ('Inh L1 SST NMBR', 'n51'),
+            "n51": ('n52', 'Inh L2-6 LAMP5 CA1'),
+            "n52": ('Inh L1-4 LAMP5 LCP2', 'Inh L1-2 LAMP5 DBP'),
+            "n53": ('n54', 'Inh L2-5 PVALB SCUBE3'),
+            "n54": ('Inh L3-6 SST NPY', 'n55'),
+            "n55": ('n61', 'n56'),
+            "n56": ('Inh L5-6 GAD1 GLP1R', 'n57'),
+            "n57": ('Inh L5-6 PVALB LGR5', 'n58'),
+            "n58": ('n59', 'Inh L5-6 SST MIR548F2'),
+            "n59": ('Inh L4-5 PVALB MEPE', 'n60'),
+            "n60": ('Inh L2-4 PVALB WFDC2', 'Inh L4-6 PVALB SULF1'),
+            "n61": ('n62', 'Inh L5-6 SST TH'),
+            "n62": ('n65', 'n63'),
+            "n63": ('n64', 'Inh L2-4 SST FRZB'),
+            "n64": ('Inh L1-3 SST CALB1', 'Inh L3-5 SST ADGRG6'),
+            "n65": ('Inh L3-6 SST HPGD', 'n66'),
+            "n66": ('n67', 'Inh L4-5 SST STK32A'),
+            "n67": ('n69', 'n68'),
+            "n68": ('Inh L5-6 SST NPM1P10', 'Inh L4-6 SST GXYLT2'),
+            "n69": ('Inh L4-6 SST B3GAT2', 'Inh L5-6 SST KLHDC8A'),
+            "n70": ('n71', 'Micro L1-3 TYROBP'),
+            "n71": ('n72', 'Endo L2-6 NOSTRIN'),
+            "n72": ('n73', 'Oligo L1-6 OPALIN'),
+            "n73": ('OPC L1-6 PDGFRA', 'n74'),
+            "n74": ('Astro L1-6 FGFR3 SLC14A1', 'Astro L1-2 FGFR3 GFAP')
+        }
+        self.__checkClusterTree(tree_arr)
+        self.__isFinished = True
+        thread_build.join()
+        time.sleep(0.2)
+
+        self.__waitingMessage = "Reading data in..."
+        self.__isFinished = False
+        thread_read = threading.Thread(target=showProcess)
+        thread_read.start()
+        data = ad.read_h5ad(data_directory + "INPUT_DATA.h5ad")
+        self.__dataSet = data
+        self.__isFinished = True
+        thread_read.join()
+        time.sleep(0.2)
+        return data
+
+    # Read cells from a given directory.
+    # data_directory: PathLike, representing the directory of the file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file, e.g. "~/xhx/Python/neuron_full.pkl";
     #           if data_directory is None: use default data directory.
     # branch_name: str, representing the target branch, e.g. "n48";
     #           if branch_name is None: choose default branch; if default is still None, read the whole dataset.
     # cluster_set: a list or tuple of strings containing all target clusters to choose;
     # use_cluster_set: bool, indicating whether to activate choose from cluster_set;
+    # file_type: can be one of ['pkl', 'csv', 'loom', 'h5ad'];
     # output: can be 'DataFrame' or 'AnnData', which indicates return type.
     # Return: a DataFrame or AnnData object.
-    def readData(self, data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, output='DataFrame'):
+    def readData(self, data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, file_type=None, output=None):
         if data_directory is None:
             data_directory = self.__dataDirectory
         if not use_cluster_set and branch_name is None:
             branch_name = self.__branch
         data = None
         data_directory = data_directory.strip()
-        filetype = data_directory[-3:]
-        if filetype == 'csv':
+        if file_type is None:
+            file_type = data_directory[-3:]
+        if file_type == 'csv':
             try:
                 data = pd.read_csv(data_directory)
             except:
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
                 return -1
-        elif filetype == 'pkl':
+        elif file_type == 'pkl':
             try:
                 data = pd.read_pickle(data_directory)
+            except:
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
+                return -1
+        elif file_type == 'loom':
+            try:
+                data = ad.read_loom(data_directory)
+            except:
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
+                return -1
+        elif file_type == 'h5ad':
+            try:
+                data = ad.read_h5ad(data_directory)
             except:
                 print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception: '" + data_directory + "' no such file or directory.")
                 return -1
         else:
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives an unrecognized file type.")
             return -1
-        if use_cluster_set:
-            if (not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple)) or len(cluster_set) == 0:
-                cluster_set = self.__clusterSet
-            return data[data['cluster'].isin(cluster_set)]
-        if branch_name != None:
-            clusters = self.listBranch(branch_name)
-            data = data[data['cluster'].isin(clusters)]
-            if clusters == -1:
-                print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception.")
-                return -1
-        if output == "DataFrame":
+        data = self.selectBranch(data, branch_name, cluster_set, use_cluster_set)
+        if isinstance(data, int):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') throws an exception.")
+            return -1
+        if output is None:
             return data
         elif output == "AnnData":
-            return self.DataFrame_to_AnnData(data)
+            if isinstance(data, pd.core.frame.DataFrame):
+                return self.DataFrame_to_AnnData(data)
+            else:
+                return data
+        elif output == "DataFrame":
+            if isinstance(data, ad._core.anndata.AnnData):
+                return self.AnnData_to_DataFrame(data)
+            else:
+                return data
         else:
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.readData()' (in file '" + __file__ + "') receives a wrong output format parameter (must be 'AnnData' or 'DataFrame').")
             return -1
+    
+    # Select cells whose cluster is under the given branch or in given cluster set.
+    # data: AnnData or DataFrame;
+    # branch_name: str, representing the target branch, e.g. "n48";
+    #           if branch_name is None: choose default branch; if default is still None, read the whole dataset.
+    # cluster_set: a list or tuple of strings containing all target clusters to choose;
+    # use_cluster_set: bool, indicating whether to activate choose from cluster_set.
+    # Return: a DataFrame or AnnData object.
+    def selectBranch(self, data=None, branch_name=None, cluster_set=[], use_cluster_set=False):
+        isAnnData = False
+        if data is None:
+            data = self.__dataSet
+        if branch_name is None:
+            branch_name = self.__branch
+        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+            print("\033[1;31;40mError:\033[0m method 'sctreeshap.selectBranch()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
+            return -1
+        if isinstance(data, ad._core.anndata.AnnData):
+            isAnnData = True
+            data = self.AnnData_to_DataFrame(data)
+        if use_cluster_set:
+            if (not isinstance(cluster_set, list) and not isinstance(cluster_set, tuple)) or len(cluster_set) == 0:
+                cluster_set = self.__clusterSet
+            data = data[data['cluster'].isin(cluster_set)]
+        elif branch_name != None:
+            clusters = self.listBranch(branch_name)
+            if isinstance(clusters, int):
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.selectBranch()' (in file '" + __file__ + "') throws an exception.")
+                return -1
+            data = data[data['cluster'].isin(clusters)]
+        if isAnnData:
+            return self.DataFrame_to_AnnData(data)
+        else:
+            return data
     
     # Merge all clusters under a given branch.
     # data: AnnData or DataFrame;
@@ -410,14 +652,12 @@ class sctreeshap:
         if isinstance(data, ad._core.anndata.AnnData):
             isAnnData = True
             data = self.AnnData_to_DataFrame(data)
-        if branch_name is None:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') requires a target branch.")
-            return -1
-        clusters = self.listBranch(branch_name)
-        if clusters == -1:
-            print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') throws an exception.")
-            return -1
-        data.loc[data[data['cluster'].isin(clusters)].index.tolist(), 'cluster'] = branch_name
+        if branch_name != None:
+            clusters = self.listBranch(branch_name)
+            if isinstance(clusters, int):
+                print("\033[1;31;40mError:\033[0m method 'sctreeshap.mergeBranch()' (in file '" + __file__ + "') throws an exception.")
+                return -1
+            data.loc[data[data['cluster'].isin(clusters)].index.tolist(), 'cluster'] = branch_name
         if isAnnData:
             return self.DataFrame_to_AnnData(data)
         else:
@@ -520,6 +760,7 @@ class sctreeshap:
         if data is None:
             data = self.__dataSet
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+            self.__isFinished = True
             thread_preprocessData.join()
             time.sleep(0.2)
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.explainBinary()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
@@ -637,6 +878,7 @@ class sctreeshap:
         if data is None:
             data = self.__dataSet
         if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+            self.__isFinished = True
             thread_preprocessData.join()
             time.sleep(0.2)
             print("\033[1;31;40mError:\033[0m method 'sctreeshap.explainMulti()' (in file '" + __file__ + "') receives an invalid dataset of wrong type (must be 'AnnData' or 'DataFrame').")
@@ -765,8 +1007,10 @@ class sctreeshap:
             setShapParamsMulti = 'setShapParamsMulti(): set default shap plots parameters of explainMulti().'
             findCluster = 'findCluster(): find which branch a given cluster is in.'
             listBranch = 'listBranch(): list the clusters of a given branch.'
+            loadDefault = 'loadDefault(): load default dataset and build default cluster tree.'
             dataprocessing = '\033[1;37;40mData processing:\033[0m'
-            readData = 'readData(): read cells from a given directory whose clusters are under a given branch.'
+            readData = 'readData(): read cells from a given directory.'
+            selectBranch = 'selectBranch(): select cells whose cluster is under the given branch or in given cluster set.'
             mergeBranch = 'mergeBranch(): merge all clusters under a given branch.'
             AnnData_to_DataFrame = 'AnnData_to_DataFrame(): convert AnnData to DataFrame.'
             DataFrame_to_AnnData = 'DataFrame_to_AnnData(): convert DataFrame to AnnData.'
@@ -796,9 +1040,11 @@ class sctreeshap:
                 + '|  ' + setClusterSet + ' ' * (num_of_spaces - len(setClusterSet)) + '  |\n' \
                 + '|  ' + setShapParamsBinary + ' ' * (num_of_spaces - len(setShapParamsBinary)) + '  |\n' \
                 + '|  ' + setShapParamsMulti + ' ' * (num_of_spaces - len(setShapParamsMulti)) + '  |\n' \
+                + '|  ' + loadDefault + ' ' * (num_of_spaces - len(loadDefault)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
                 + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
+                + '|  ' + selectBranch + ' ' * (num_of_spaces - len(selectBranch)) + '  |\n' \
                 + '|  ' + mergeBranch + ' ' * (num_of_spaces - len(mergeBranch)) + '  |\n' \
                 + '|  ' + AnnData_to_DataFrame + ' ' * (num_of_spaces - len(AnnData_to_DataFrame)) + '  |\n' \
                 + '|  ' + DataFrame_to_AnnData + ' ' * (num_of_spaces - len(DataFrame_to_AnnData)) + '  |\n' \
@@ -841,7 +1087,7 @@ class sctreeshap:
             function = '\033[1;37;40msctreeshap.sctreeshap.setDataDirectory\033[0m'
             api = 'sctreeshap.sctreeshap.setDataDirectory(data_directory=None)'
             description =                   'Description: set default data directory.'
-            data_directory =                'Parameters:  data_directory: str'
+            data_directory =                'Parameters:  data_directory: PathLike'
             data_directory_description1 =   '             |  The directory of default input file, can be a .pkl file or a .csv file.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
@@ -1007,16 +1253,18 @@ class sctreeshap:
         if cmd == 'readData':
             function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
             api = "sctreeshap.sctreeshap.readData(data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, "
-            api1 = "output='DataFrame')"
-            description =                   'Description: read cells from a given directory whose clusters are under a given branch.'
-            data_directory =                          'Parameters:  data_directory: str'
-            data_directory_description1 =             '             |  The directory of the input file, can be a .pkl file or a .csv file.'
+            api1 = "file_type=None, output=None)"
+            description =                   'Description: read cells from a given directory.'
+            data_directory =                          'Parameters:  data_directory: PathLike'
+            data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file."
             branch_name =                             '             branch_name: str'
-            branch_name_description1 =                '             |  The target branch.'
+            branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
             cluster_set =                             '             cluster_set: list or tuple'
             cluster_set_description1 =                '             |  A list or tuple of strings representing the target clusters.'
             use_cluster_set =                         '             use_cluster_set: bool'
-            use_cluster_set_description1 =            '             |  Determine whether to choose from branch or cluster_set.'
+            use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
+            file_type =                               '             file_type: str'
+            file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad']."
             output =                                  "             output: 'DataFrame' or 'AnnData'"
             output_description1 =                     '             |  Determine the return type of the function.'
             return_description =                      'Return:      AnnData or DataFrame.'
@@ -1037,6 +1285,8 @@ class sctreeshap:
                 + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
                 + '|  ' + use_cluster_set + ' ' * (num_of_spaces - len(use_cluster_set)) + '  |\n' \
                 + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
+                + '|  ' + file_type + ' ' * (num_of_spaces - len(file_type)) + '  |\n' \
+                + '|  ' + file_type_description1 + ' ' * (num_of_spaces - len(file_type_description1)) + '  |\n' \
                 + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
                 + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
@@ -1277,8 +1527,10 @@ class sctreeshap:
                     setShapParamsMulti = 'setShapParamsMulti(): set default shap plots parameters of explainMulti().'
                     findCluster = 'findCluster(): find which branch a given cluster is in.'
                     listBranch = 'listBranch(): list the clusters of a given branch.'
+                    loadDefault = 'loadDefault(): load default dataset and build default cluster tree.'
                     dataprocessing = '\033[1;37;40mData processing:\033[0m'
-                    readData = 'readData(): read cells from a given directory whose clusters are under a given branch.'
+                    readData = 'readData(): read cells from a given directory.'
+                    selectBranch = 'selectBranch(): select cells whose cluster is under the given branch or in given cluster set.'
                     mergeBranch = 'mergeBranch(): merge all clusters under a given branch.'
                     AnnData_to_DataFrame = 'AnnData_to_DataFrame(): convert AnnData to DataFrame.'
                     DataFrame_to_AnnData = 'DataFrame_to_AnnData(): convert DataFrame to AnnData.'
@@ -1308,9 +1560,11 @@ class sctreeshap:
                         + '|  ' + setClusterSet + ' ' * (num_of_spaces - len(setClusterSet)) + '  |\n' \
                         + '|  ' + setShapParamsBinary + ' ' * (num_of_spaces - len(setShapParamsBinary)) + '  |\n' \
                         + '|  ' + setShapParamsMulti + ' ' * (num_of_spaces - len(setShapParamsMulti)) + '  |\n' \
+                        + '|  ' + loadDefault + ' ' * (num_of_spaces - len(loadDefault)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                         + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
                         + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
+                        + '|  ' + selectBranch + ' ' * (num_of_spaces - len(selectBranch)) + '  |\n' \
                         + '|  ' + mergeBranch + ' ' * (num_of_spaces - len(mergeBranch)) + '  |\n' \
                         + '|  ' + AnnData_to_DataFrame + ' ' * (num_of_spaces - len(AnnData_to_DataFrame)) + '  |\n' \
                         + '|  ' + DataFrame_to_AnnData + ' ' * (num_of_spaces - len(DataFrame_to_AnnData)) + '  |\n' \
@@ -1355,7 +1609,7 @@ class sctreeshap:
                     function = '\033[1;37;40msctreeshap.sctreeshap.setDataDirectory\033[0m'
                     api = 'sctreeshap.sctreeshap.setDataDirectory(data_directory=None)'
                     description =                   'Description: set default data directory.'
-                    data_directory =                'Parameters:  data_directory: str'
+                    data_directory =                'Parameters:  data_directory: PathLike'
                     data_directory_description1 =   '             |  The directory of default input file, can be a .pkl file or a .csv file.'
                     print( ' __' + '_' * num_of_spaces + '__ \n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
@@ -1521,16 +1775,18 @@ class sctreeshap:
                 elif cmd == 'readData':
                     function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
                     api = "sctreeshap.sctreeshap.readData(data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, "
-                    api1 = "output='DataFrame')"
-                    description =                   'Description: read cells from a given directory whose clusters are under a given branch.'
-                    data_directory =                          'Parameters:  data_directory: str'
-                    data_directory_description1 =             '             |  The directory of the input file, can be a .pkl file or a .csv file.'
+                    api1 = "file_type=None, output=None)"
+                    description =                   'Description: read cells from a given directory.'
+                    data_directory =                          'Parameters:  data_directory: PathLike'
+                    data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file."
                     branch_name =                             '             branch_name: str'
-                    branch_name_description1 =                '             |  The target branch.'
+                    branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
                     cluster_set =                             '             cluster_set: list or tuple'
                     cluster_set_description1 =                '             |  A list or tuple of strings representing the target clusters.'
                     use_cluster_set =                         '             use_cluster_set: bool'
-                    use_cluster_set_description1 =            '             |  Determine whether to choose from branch or cluster_set.'
+                    use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
+                    file_type =                               '             file_type: str'
+                    file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad']."
                     output =                                  "             output: 'DataFrame' or 'AnnData'"
                     output_description1 =                     '             |  Determine the return type of the function.'
                     return_description =                      'Return:      AnnData or DataFrame.'
@@ -1551,6 +1807,8 @@ class sctreeshap:
                         + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
                         + '|  ' + use_cluster_set + ' ' * (num_of_spaces - len(use_cluster_set)) + '  |\n' \
                         + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
+                        + '|  ' + file_type + ' ' * (num_of_spaces - len(file_type)) + '  |\n' \
+                        + '|  ' + file_type_description1 + ' ' * (num_of_spaces - len(file_type_description1)) + '  |\n' \
                         + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
                         + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
                         + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
