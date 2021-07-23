@@ -10,9 +10,9 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.6.3 Update
+## v0.6.4rc Update
 
-- Bug fixes.
+- Test version, no update.
 
 ## Installing sctreeshap
 

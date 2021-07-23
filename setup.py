@@ -5,7 +5,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setuptools.setup(
   name="sctreeshap",
-  version="0.6.3",
+  version="0.6.4rc",
   author="Haoxuan Xie",
   author_email="haoxuanxie@link.cuhk.edu.cn",
   url="https://github.com/ForwardStar/sctreeshap",
@@ -15,7 +15,7 @@ setuptools.setup(
   long_description_content_type="text/markdown",
   license="LICENSE",
   classifiers=[
-  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.7",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   ],
@@ -34,5 +34,5 @@ setuptools.setup(
                     'requests>=2.26.0',
                     'pathlib>=1.0.1',
                     'pip>=21.1.3'],
-  python_requires='>=3.8'
+  python_requires='>=3.7'
 )

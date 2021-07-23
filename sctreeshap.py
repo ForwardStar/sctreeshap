@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.6.3"
+__version__ = "0.6.4(Special version for Python 3.7, not stable)"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import requests
