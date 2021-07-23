@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import requests
@@ -21,7 +21,7 @@ try:
                 if resp[i] == '>':
                     Write = True
             latest_version = latest_version.strip()
-            if latest_version != __version__:
+            if latest_version != __name__ + " " + __version__:
                 print("\033[1;33;40mWarning:\033[0m new version " + latest_version + " available (Currently " + __version__ + "). See updates at https://pypi.org/project/sctreeshap/")
         else:
             print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")

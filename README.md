@@ -10,10 +10,9 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.6.0 Update
+## v0.6.1 Update
 
-- Stability improvement.
-- You can now load housekeeping gene sets by loadHousekeeping().
+- Bug fixes.
 
 ## Installing sctreeshap
 
