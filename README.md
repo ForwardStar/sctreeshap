@@ -10,9 +10,10 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.7 Update
+## v0.6.0 Update
 
-- Further improve the stability of downloading data.
+- Stability improvement.
+- You can now load housekeeping gene sets by loadHousekeeping().
 
 ## Installing sctreeshap
 
@@ -54,7 +55,7 @@ The further details in the process are discussed in the following documents.
 
 ## Data Input and Filtering
 
-An sctreeshap object construction needs a python dict reflecting the tree structure. Here is an example of the cluster tree above.
+A sctreeshap object construction needs a python dict reflecting the tree structure. Here is an example of the cluster tree above.
 
 ```python
 from sctreeshap import sctreeshap
@@ -141,33 +142,37 @@ Sample = sctreeshap(tree_arr)
 
 The keys of the dict represent the name of each tree node, while the values represent the children of each node (the tree can be either binary or multi-children). Note that clusters do not need to be assigned as a key, since they are the leaf nodes in the tree and do not have children.
 
-You can read in data by:
+Then you can read in data by:
 
 ```python
-data = Sample.readData(branch_name='n70', data_directory='./nonneuron_full.pkl')
+data = Sample.readData('samplefile.csv', output='DataFrame')
 ```
 
-where branch_name is your target branch, data_directory is the directory of the input file. It can be either a csv file or pkl file.
+which can recognize .csv, .pkl, .h5ad, .loom, and .xlsx file, and will return an AnnData or DataFrame object.
 
-The sample data "nonneuron_full.pkl" can be downloaded from:
+For the cluster tree in the beginning of this documentation, the corresponding dataset can be loaded by:
 
-https://cuhko365-my.sharepoint.com/:u:/g/personal/119010351_link_cuhk_edu_cn/EQU9C6g30a9KvYW2qYRgwbwBCIDhLV_exoIZST1OyHEOWQ?e=HKFbNs
+```python
+data = Sample.loadDefault()
+```
 
-After reading in data, you can filter low-expressed genes, housekeeping genes and general genes by:
+After reading in data, you can select a branch in the cluster tree. Cells with clusters not under the branch will be filtered:
+
+```python
+# Select non-neuron branch: n70
+data = Sample.selectBranch(data, 'n70')
+```
+
+You can also filter low-expressed genes, housekeeping genes and general genes by:
 
 ```python
 prefix = ["MT", "RPS", "RPL", "HSP", "HLA"]
-housekeeping = pd.read_csv("./Housekeeping_TranscriptsHuman.csv")
-housekeeping = list(housekeeping["Gene_symbol"])
+housekeeping = Sample.loadHousekeeping('human')
 data = Sample.geneFiltering(data, min_partial=0.3, gene_set=housekeeping, gene_prefix=prefix)
 print(data)
 ```
 
 Then genes expressed in <30% cells will be filtered. Genes in gene_set or with prefix in gene_prefix will also be filtered.
-
-The housekeeping genes of human can be downloaded from:
-
-http://www.housekeeping.unicamp.br/Housekeeping_TranscriptsHuman.xlsx
 
 You can merge clusters under a branch if needed:
 

@@ -10,4 +10,6 @@ imbalanced-learn>=0.8.0
 xgboost>=1.4.2
 loompy>=3.0.6
 tqdm>=4.61.2
+requests>=2.26.0
 pathlib>=1.0.1
+pip>=21.1.3

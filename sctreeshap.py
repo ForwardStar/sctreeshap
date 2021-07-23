@@ -1,5 +1,36 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.7"
+__version__ = "0.6.0"
+headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
+
+import requests
+try:
+    url = "https://pypi.org/project/sctreeshap/"
+    resp = requests.get(url, headers, timeout=5)
+    resp.encoding = 'UTF-8'
+    if resp.status_code == 200:
+        resp = str(resp.text)
+        locate = resp.find('<h1 class="package-header__name">')
+        if locate != -1:
+            Write = False
+            latest_version = ""
+            for i in range(locate + 1, len(resp)):
+                if resp[i] == '<':
+                    break
+                if Write and resp[i] != '\n':
+                    latest_version += resp[i]
+                if resp[i] == '>':
+                    Write = True
+            latest_version = latest_version.strip()
+            if latest_version != __version__:
+                print("\033[1;33;40mWarning:\033[0m new version " + latest_version + " available (Currently " + __version__ + "). See updates at https://pypi.org/project/sctreeshap/")
+        else:
+            print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
+    else:
+        print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
+except KeyboardInterrupt:
+    raise
+except:
+    print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
 
 import time
 import threading
@@ -11,6 +42,52 @@ from xgboost import XGBClassifier
 from matplotlib import pyplot as plt
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
+
+def download(url, path):
+    from tqdm import tqdm
+    from urllib.request import urlopen, Request
+    blocksize = 1024 * 8
+    blocknum = 0
+    retry_times = 0
+    while True:
+        try:
+            with urlopen(Request(url, headers=headers), timeout=3) as resp:
+                total = resp.info().get("content-length", None)
+                with tqdm(
+                    unit="B",
+                    unit_scale=True,
+                    miniters=1,
+                    unit_divisor=1024,
+                    total=total if total is None else int(total),
+                ) as t, path.open("wb") as f:
+                    block = resp.read(blocksize)
+                    while block:
+                        f.write(block)
+                        blocknum += 1
+                        t.update(len(block))
+                        block = resp.read(blocksize)
+            break
+        except KeyboardInterrupt:
+            if path.is_file():
+                path.unlink()
+            raise
+        except:
+            retry_times += 1
+            if retry_times >= 20:
+                break
+            print("Timed out, retrying...")
+    if retry_times >= 20:
+        if path.is_file():
+            path.unlink()
+        raise ConnectionError("bad internet connection, check it and retry.")
+
+def upgrade():
+    from pip._internal import main
+    main.main(['install', '--upgrade', 'sctreeshap'])
+
+def uninstall():
+    from pip._internal import main
+    main.main(['uninstall', 'sctreeshap'])
 
 class sctreeshap:
     def __checkLoops(self, root):
@@ -343,11 +420,9 @@ class sctreeshap:
             print("First time loading. Downloading the partitioned dataset... (427.6 MiB)")
             if not os.path.exists(data_directory):
                 os.mkdir(data_directory)
-            from tqdm import tqdm
-            from urllib.request import urlopen, Request
-            from pathlib import Path
             import tarfile
             import bz2
+            from pathlib import Path
             if not os.path.exists(data_directory + "tmp"):
                 os.mkdir(data_directory + "tmp")
             for i in range(1, 43):
@@ -360,42 +435,22 @@ class sctreeshap:
                     print("Downloading: " + part_num + "/042")
                 path = Path(data_directory + "tmp/INPUT_DATA.h5ad.tar.bz2.part" + part_num)
                 url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/datasets/INPUT_DATA.h5ad.tar.bz2.part" + part_num
-                headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
-                blocksize = 1024 * 8
-                blocknum = 0
-                retry_times = 0
-                while True:
-                    try:
-                        with urlopen(Request(url, headers=headers), timeout=3) as resp:
-                            total = resp.info().get("content-length", None)
-                            with tqdm(
-                                unit="B",
-                                unit_scale=True,
-                                miniters=1,
-                                unit_divisor=1024,
-                                total=total if total is None else int(total),
-                            ) as t, path.open("wb") as f:
-                                block = resp.read(blocksize)
-                                while block:
-                                    f.write(block)
-                                    blocknum += 1
-                                    t.update(len(block))
-                                    block = resp.read(blocksize)
-                        break
-                    except KeyboardInterrupt:
-                        if path.is_file():
-                            path.unlink()
-                        raise
-                    except:
-                        retry_times += 1
-                        if retry_times >= 20:
-                            break
-                        print("Timed out, retrying...")
-                if retry_times >= 20:
-                    if path.is_file():
-                        path.unlink()
-                    raise ConnectionError("bad internet connection, retry or check it.")
+                download(url, path)
             
+            print("Downloading finished, files checking...")
+            missing_files = []
+            for i in range(1, 43):
+                part_num = str(i)
+                part_num = (3 - len(part_num)) * '0' + part_num
+                if not os.path.isfile(data_directory + "tmp/INPUT_DATA.h5ad.tar.bz2.part" + part_num):
+                    missing_files.append("INPUT_DATA.h5ad.tar.bz2.part" + part_num)
+            if len(missing_files) > 0:
+                print("Files", missing_files, "missing! Trying to automatically fix it.")
+                for files in missing_files:
+                    print("Downloading file " + files + "...")
+                    path = Path(data_directory + "tmp/" + files)
+                    url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/datasets/" + files
+                    
             self.__waitingMessage = "Merging the partitioned dataset..."
             self.__isFinished = False
             thread_merge = threading.Thread(target=showProcess)
@@ -423,6 +478,8 @@ class sctreeshap:
                 archive = tarfile.open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), "r:bz2")
                 archive.extractall(data_directory)
                 archive.close()
+            except KeyboardInterrupt:
+                raise
             except:
                 self.__isFinished = "Error"
                 thread_extract.join()
@@ -530,6 +587,8 @@ class sctreeshap:
         thread_read.start()
         try:
             data = ad.read_h5ad(data_directory + "INPUT_DATA.h5ad")
+        except KeyboardInterrupt:
+            raise
         except:
             self.__isFinished = "Error"
             thread_read.join()
@@ -552,12 +611,24 @@ class sctreeshap:
         import os
         data_directory = __file__[:-13] + "sctreeshap_data"
         if os.path.exists(data_directory):
-            for root, dirs, files in os.walk(data_directory, topdown=False):
-                for name in files:
-                    os.remove(os.path.join(root, name))
-                for name in dirs:
-                    os.rmdir(os.path.join(root, name))
-            os.rmdir(data_directory)
+            tmp = data_directory + "/tmp"
+            if os.path.exists(tmp):
+                target_files = [("INPUT_DATA.h5ad.tar.bz2.part" + (3 - len(str(i))) * '0' + str(i)) for i in range(1, 43)]
+                for files in os.listdir(tmp):
+                    if str(files) in target_files:
+                        os.remove(os.path.join(tmp, files))
+                if len(os.listdir(tmp)) == 0:
+                    os.rmdir(tmp)
+            if os.path.isfile(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2")):
+                os.remove(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"))
+            if os.path.isfile(os.path.join(data_directory, "INPUT_DATA.h5ad")):
+                os.remove(os.path.join(data_directory, "INPUT_DATA.h5ad"))
+            if os.path.isfile(os.path.join(data_directory, "Housekeeping_GenesHuman.csv")):
+                os.remove(os.path.join(data_directory, "Housekeeping_GenesHuman.csv"))
+            if os.path.isfile(os.path.join(data_directory, "Housekeeping_GenesMouse.csv")):
+                os.remove(os.path.join(data_directory, "Housekeeping_GenesMouse.csv"))
+            if len(os.listdir(data_directory)) == 0:
+                os.rmdir(data_directory)
 
     # Read cells from a given directory.
     # data_directory: PathLike, representing the directory of the file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file, e.g. "~/xhx/Python/neuron_full.pkl";
@@ -591,7 +662,7 @@ class sctreeshap:
         elif file_type.endswith('xlsx'):
             data = ad.read_excel(data_directory)
         else:
-            raise ValueError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'file_type' receives an unrecognized value: " + file_type + ", expected 'csv', 'pkl', 'loom', 'h5ad' or 'xlsx'.")
+            raise ValueError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'file_type' receives an unrecognized value: '" + file_type + "', expected 'csv', 'pkl', 'loom', 'h5ad' or 'xlsx'.")
         data = self.selectBranch(data, branch_name, cluster_set, use_cluster_set)
         if output is None:
             return data
@@ -608,7 +679,7 @@ class sctreeshap:
             else:
                 return data
         else:
-            raise ValueError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'output' receives an unrecognized value: " + str(output) + ", expected 'AnnData' or 'DataFrame'.")
+            raise ValueError("in method 'sctreeshap.sctreeshap.readData()' (in file '" + __file__ + "'), parameter 'output' receives an unrecognized value: '" + str(output) + "', expected 'AnnData' or 'DataFrame'.")
     
     # Select cells whose cluster is under the given branch or in given cluster set.
     # data: AnnData or DataFrame;
@@ -691,6 +762,45 @@ class sctreeshap:
         X = np.array(data)
         return ad.AnnData(np.array(data), obs=obs, var=var, dtype="float")
     
+    def loadHousekeeping(self, category):
+        if not isinstance(category, str):
+            raise TypeError("in method 'sctreeshap.sctreeshap.loadHousekeeping()' (in file '" + __file__ + "'), parameter 'category' receives " + str(type(category)) + ", expected <class 'str'>.")
+        data_directory = __file__[:-13] + "sctreeshap_data"
+        hkg = []
+        if category == 'human':
+            import sys, os
+            files = "Housekeeping_GenesHuman.csv"
+            if not os.path.exists(data_directory) or not os.path.isfile(os.path.join(data_directory, files)):
+                from pathlib import Path
+                print("First time loading. Downloading " + files + "...")
+                if not os.path.exists(data_directory):
+                    os.mkdir(data_directory)
+                path = Path(os.path.join(data_directory, files))
+                url = "https://housekeeping.unicamp.br/Housekeeping_GenesHuman.csv"
+                download(url, path)
+            file = open(os.path.join(data_directory, files), "r", encoding='utf-8')
+            for lines in file.readlines()[1:]:
+                lines = lines.split(';')
+                hkg.append(lines[1])
+        elif category == 'mouse':
+            import sys, os
+            files = "Housekeeping_GenesMouse.csv"
+            if not os.path.exists(data_directory) or not os.path.isfile(os.path.join(data_directory, files)):
+                from pathlib import Path
+                print("First time loading. Downloading " + files + "...")
+                if not os.path.exists(data_directory):
+                    os.mkdir(data_directory)
+                path = Path(os.path.join(data_directory, files))
+                url = "https://housekeeping.unicamp.br/Housekeeping_GenesMouse.csv"
+                download(url, path)
+            file = open(os.path.join(data_directory, files), "r", encoding='utf-8')
+            for lines in file.readlines()[1:]:
+                lines = lines.split(';')
+                hkg.append(lines[1])
+        else:
+            raise ValueError("in method 'sctreeshap.sctreeshap.loadHousekeeping()' (in file '" + __file__ + "'), parameter 'category' receives an unrecognized value: '" + category + "', expected 'human' or 'mouse'.")
+        return hkg
+            
     # Filter genes customly.
     # data: AnnData or DataFrame;
     # min_partial: float, to filter genes expressed in less than min_partial * 100% cells;
@@ -1292,7 +1402,7 @@ class sctreeshap:
             api1 = "file_type=None, output=None)"
             description =                   'Description: read cells from a given directory.'
             data_directory =                          'Parameters:  data_directory: PathLike'
-            data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file."
+            data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad', 'xlsx'] file."
             branch_name =                             '             branch_name: str'
             branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
             cluster_set =                             '             cluster_set: list or tuple'
@@ -1300,7 +1410,7 @@ class sctreeshap:
             use_cluster_set =                         '             use_cluster_set: bool'
             use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
             file_type =                               '             file_type: str'
-            file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad']."
+            file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad', 'xlsx']."
             output =                                  "             output: 'DataFrame' or 'AnnData'"
             output_description1 =                     '             |  Determine the return type of the function.'
             return_description =                      'Return:      AnnData or DataFrame.'
@@ -1576,8 +1686,7 @@ class sctreeshap:
             cmd = input().strip()
             if cmd[:4] == 'EXIT':
                 return None
-            elif cmd[:4] == 'SHOW':
-                cmd = cmd[4:].strip()
+            else:
                 if cmd == 'documentations' or cmd == 'apilist':
                     documentations = '                                              \033[1;37;40mDocumentations\033[0m                                  '
                     nameAndVersion = '                                            ' + __name__ + ': v' + __version__
@@ -1873,7 +1982,7 @@ class sctreeshap:
                     api1 = "file_type=None, output=None)"
                     description =                   'Description: read cells from a given directory.'
                     data_directory =                          'Parameters:  data_directory: PathLike'
-                    data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file."
+                    data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad', 'xlsx'] file."
                     branch_name =                             '             branch_name: str'
                     branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
                     cluster_set =                             '             cluster_set: list or tuple'
@@ -1881,7 +1990,7 @@ class sctreeshap:
                     use_cluster_set =                         '             use_cluster_set: bool'
                     use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
                     file_type =                               '             file_type: str'
-                    file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad']."
+                    file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad', 'xlsx']."
                     output =                                  "             output: 'DataFrame' or 'AnnData'"
                     output_description1 =                     '             |  Determine the return type of the function.'
                     return_description =                      'Return:      AnnData or DataFrame.'
@@ -2152,5 +2261,3 @@ class sctreeshap:
                         + '|__' + '_' * num_of_spaces + '__|')
                 else:
                     print("Unrecognized item:", cmd)
-            else:
-                print("Unrecognized command:", cmd[:4])
