@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import requests
@@ -83,11 +83,11 @@ def download(url, path):
 
 def upgrade():
     from pip._internal import main
-    main.main(['install', '--upgrade', 'sctreeshap'])
+    main(['install', '--upgrade', 'sctreeshap'])
 
 def uninstall():
     from pip._internal import main
-    main.main(['uninstall', 'sctreeshap'])
+    main(['uninstall', 'sctreeshap'])
 
 class sctreeshap:
     def __checkLoops(self, root):
@@ -483,10 +483,10 @@ class sctreeshap:
             except:
                 self.__isFinished = "Error"
                 thread_extract.join()
-                print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n]", end='')
+                print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n] ", end='')
                 redownload = input()
                 while redownload != 'y' and redownload != 'n':
-                    print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n]", end='')
+                    print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n] ", end='')
                     redownload = input()
                 if redownload == 'y':
                     self.clearDownload()
@@ -592,10 +592,10 @@ class sctreeshap:
         except:
             self.__isFinished = "Error"
             thread_read.join()
-            print("\033[1;31;40mError:\033[0m An error occurred during reading the dataset. The file may be broken. Do you want to redownload it? [y/n]", end='')
+            print("\033[1;31;40mError:\033[0m An error occurred during reading the dataset. The file may be broken. Do you want to redownload it? [y/n] ", end='')
             redownload = input()
             while redownload != 'y' and redownload != 'n':
-                print("\033[1;31;40mError:\033[0m An error occurred during reading the dataset. The file may be broken. Do you want to redownload it? [y/n]", end='')
+                print("\033[1;31;40mError:\033[0m An error occurred during reading the dataset. The file may be broken. Do you want to redownload it? [y/n] ", end='')
                 redownload = input()
             if redownload == 'y':
                 self.clearDownload()
