@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.5.6"
+__version__ = "0.5.7"
 
 import time
 import threading
@@ -333,7 +333,10 @@ class sctreeshap:
                 time.sleep(0.05)
                 print('\b/', end='')
                 time.sleep(0.05)
-            print('\bdone')
+            if self.__isFinished is True:
+                print('\bdone')
+            else:
+                print('\berror!')
         import sys, os
         data_directory = __file__[:-13] + "sctreeshap_data/"
         if not os.path.exists(data_directory) or not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
@@ -416,9 +419,22 @@ class sctreeshap:
             self.__isFinished = False
             thread_extract = threading.Thread(target=showProcess)
             thread_extract.start()
-            archive = tarfile.open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), "r:bz2")
-            archive.extractall(data_directory)
-            archive.close()
+            try:
+                archive = tarfile.open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), "r:bz2")
+                archive.extractall(data_directory)
+                archive.close()
+            except:
+                self.__isFinished = "Error"
+                thread_extract.join()
+                print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n]", end='')
+                redownload = input()
+                while redownload != 'y' and redownload != 'n':
+                    print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n]", end='')
+                    redownload = input()
+                if redownload == 'y':
+                    self.clearDownload()
+                    return self.loadDefault()
+                raise
             self.__isFinished = True
             thread_extract.join()
             time.sleep(0.2)
@@ -512,8 +528,20 @@ class sctreeshap:
         self.__isFinished = False
         thread_read = threading.Thread(target=showProcess)
         thread_read.start()
-        data = ad.read_h5ad(data_directory + "INPUT_DATA.h5ad")
-        self.__dataSet = data
+        try:
+            data = ad.read_h5ad(data_directory + "INPUT_DATA.h5ad")
+        except:
+            self.__isFinished = "Error"
+            thread_read.join()
+            print("\033[1;31;40mError:\033[0m An error occurred during reading the dataset. The file may be broken. Do you want to redownload it? [y/n]", end='')
+            redownload = input()
+            while redownload != 'y' and redownload != 'n':
+                print("\033[1;31;40mError:\033[0m An error occurred during reading the dataset. The file may be broken. Do you want to redownload it? [y/n]", end='')
+                redownload = input()
+            if redownload == 'y':
+                self.clearDownload()
+                return self.loadDefault()
+            raise
         self.__isFinished = True
         thread_read.join()
         time.sleep(0.2)
@@ -726,7 +754,7 @@ class sctreeshap:
             if self.__isFinished is True:
                 print('\bdone')
             else:
-                print('\berror')
+                print('\berror!')
 
         # Preprocessing data
         self.__waitingMessage = "Preprocessing data.."
@@ -844,7 +872,10 @@ class sctreeshap:
                 time.sleep(0.05)
                 print('\b/', end='')
                 time.sleep(0.05)
-            print('\bdone')
+            if self.__isFinished is True:
+                print('\bdone')
+            else:
+                print('\berror!')
 
         # Preprocessing data
         self.__waitingMessage = "Preprocessing data.."

@@ -10,10 +10,9 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.5.6 Update
+## v0.5.7 Update
 
-- Improve the stability of downloading data.
-- Function clearDownload() added. Run help('clearDownload') for details.
+- Further improve the stability of downloading data.
 
 ## Installing sctreeshap
 
