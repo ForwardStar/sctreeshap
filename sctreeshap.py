@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import requests
@@ -86,6 +86,8 @@ def upgrade():
     main(['install', '--upgrade', 'sctreeshap'])
 
 def uninstall():
+    tmp = sctreeshap()
+    tmp.clearDownload()
     from pip._internal import main
     main(['uninstall', 'sctreeshap'])
 
@@ -161,7 +163,7 @@ class sctreeshap:
     # If tree_arr is None, then it does not construct a cluster tree.
     def __init__(self, tree_arr=None):
         self.numOfClusters = 0
-        self.__clusterDict = {}
+        self.clusterDict = {}
         self.__dataDirectory = None
         self.__dataSet = None
         self.__branch = None
@@ -173,7 +175,6 @@ class sctreeshap:
         self.__explainer = None
         self.__shapValues = None
         self.__maxDisplay = None
-        self.__topGenes = None
         self.__featureNames = None
         self.__TreeNode = None
         self.__parent = {}
@@ -237,7 +238,7 @@ class sctreeshap:
             self.__branch = None
             return None
         if not isinstance(branch_name, str):
-            raise TypeError("in method 'sctreeshap.sctreeshap.setBranch()' (in file '" + __file__ + "'), parameter 'branch_name' receives " + str(type(feature_names)) + ", expected <class 'str'>.")
+            raise TypeError("in method 'sctreeshap.sctreeshap.setBranch()' (in file '" + __file__ + "'), parameter 'branch_name' receives " + str(type(branch_name)) + ", expected <class 'str'>.")
         self.__branch = branch_name
         return None
     
@@ -755,7 +756,7 @@ class sctreeshap:
         if not isinstance(data, pd.core.frame.DataFrame):
             raise TypeError("in method 'sctreeshap.sctreeshap.DataFrame_to_AnnData()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'>.")
         cluster = data.columns.values[-1]
-        obs = pd.DataFrame(data[cluster], columns=cluster)
+        obs = pd.DataFrame(data[cluster], columns=[cluster])
         obs[cluster] = obs[cluster].astype("category")
         data.drop([cluster], axis=1, inplace=True)
         var = pd.DataFrame(index=data.columns.values)

@@ -10,7 +10,7 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.6.2 Update
+## v0.6.3 Update
 
 - Bug fixes.
 
