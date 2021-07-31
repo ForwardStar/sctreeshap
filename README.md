@@ -10,9 +10,11 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.6.3 Update
+## v0.7.0 Update
 
-- Bug fixes.
+- Optimize import speed.
+- Involve "output='probability'" option in 'shap_params' for explainBinary(); you can now add {key: value} = {"output": 'probability'} to convert raw shap values to probabilities. This does not support for explainMulti.
+- We are now dealing with some problems occurred in shap. Documentation updates and PCA function would be involved in the later versions.
 
 ## Installing sctreeshap
 
@@ -167,7 +169,7 @@ You can also filter low-expressed genes, housekeeping genes and general genes by
 ```python
 prefix = ["MT", "RPS", "RPL", "HSP", "HLA"]
 housekeeping = Sample.loadHousekeeping('human')
-data = Sample.geneFiltering(data, min_partial=0.3, gene_set=housekeeping, gene_prefix=prefix)
+data = Sample.geneFiltering(data, min_partial=0.3, gene_set=housekeeping, gene_prefix=prefix, use_PCA=False)
 print(data)
 ```
 
@@ -211,6 +213,7 @@ Sample.explainBinary(
     nthread=48, # multi-thread
     shap_params={
         "max_display": 10,
+        "output": 'probability',
         "bar_plot": True,
         "beeswarm": True,
         "force_plot": False,

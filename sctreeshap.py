@@ -1,47 +1,46 @@
 __name__ = 'sctreeshap'
-__version__ = "0.6.3"
+__version__ = "0.7.0"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
-
-import requests
-try:
-    url = "https://pypi.org/project/sctreeshap/"
-    resp = requests.get(url, headers, timeout=5)
-    resp.encoding = 'UTF-8'
-    if resp.status_code == 200:
-        resp = str(resp.text)
-        locate = resp.find('<h1 class="package-header__name">')
-        if locate != -1:
-            Write = False
-            latest_version = ""
-            for i in range(locate + 1, len(resp)):
-                if resp[i] == '<':
-                    break
-                if Write and resp[i] != '\n':
-                    latest_version += resp[i]
-                if resp[i] == '>':
-                    Write = True
-            latest_version = latest_version.strip()
-            if latest_version != __name__ + " " + __version__:
-                print("\033[1;33;40mWarning:\033[0m new version " + latest_version + " available (Currently " + __version__ + "). See updates at https://pypi.org/project/sctreeshap/")
-        else:
-            print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
-    else:
-        print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
-except KeyboardInterrupt:
-    raise
-except:
-    print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
 
 import time
 import threading
 import numpy as np
 import anndata as ad
 import pandas as pd
-import shap
-from xgboost import XGBClassifier
-from matplotlib import pyplot as plt
-from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import train_test_split
+
+def checkUpdates():
+    import requests
+    try:
+        url = "https://pypi.org/project/sctreeshap/"
+        resp = requests.get(url, headers, timeout=3)
+        resp.encoding = 'UTF-8'
+        if resp.status_code == 200:
+            resp = str(resp.text)
+            locate = resp.find('<h1 class="package-header__name">')
+            if locate != -1:
+                Write = False
+                latest_version = ""
+                for i in range(locate + 1, len(resp)):
+                    if resp[i] == '<':
+                        break
+                    if Write and resp[i] != '\n':
+                        latest_version += resp[i]
+                    if resp[i] == '>':
+                        Write = True
+                latest_version = latest_version.strip()
+                if latest_version != __name__ + " " + __version__:
+                    print("\033[1;33;40mWarning:\033[0m new version " + latest_version + " available (Currently " + __version__ + "). See updates at https://pypi.org/project/sctreeshap/")
+                else:
+                    return None
+            else:
+                print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
+        else:
+            print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
+    except KeyboardInterrupt:
+        raise
+    except:
+        print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
+    print("To disable version check, run sctreeshap.muteNotifications(). To revert, run sctreeshap.enableNotifications().")
 
 def download(url, path):
     from tqdm import tqdm
@@ -81,13 +80,51 @@ def download(url, path):
             path.unlink()
         raise ConnectionError("bad internet connection, check it and retry.")
 
+def clearDownload():
+    import os
+    data_directory = __file__[:-13] + "sctreeshap_data"
+    if os.path.exists(data_directory):
+        tmp = data_directory + "/tmp"
+        if os.path.exists(tmp):
+            target_files = [("INPUT_DATA.h5ad.tar.bz2.part" + (3 - len(str(i))) * '0' + str(i)) for i in range(1, 43)]
+            for files in os.listdir(tmp):
+                if str(files) in target_files:
+                    os.remove(os.path.join(tmp, files))
+            if len(os.listdir(tmp)) == 0:
+                os.rmdir(tmp)
+        if os.path.isfile(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2")):
+            os.remove(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"))
+        if os.path.isfile(os.path.join(data_directory, "INPUT_DATA.h5ad")):
+            os.remove(os.path.join(data_directory, "INPUT_DATA.h5ad"))
+        if os.path.isfile(os.path.join(data_directory, "Housekeeping_GenesHuman.csv")):
+            os.remove(os.path.join(data_directory, "Housekeeping_GenesHuman.csv"))
+        if os.path.isfile(os.path.join(data_directory, "Housekeeping_GenesMouse.csv")):
+            os.remove(os.path.join(data_directory, "Housekeeping_GenesMouse.csv"))
+        if len(os.listdir(data_directory)) == 0:
+            os.rmdir(data_directory)
+
+def muteNotifications():
+    file = open(__file__, "r", encoding='utf-8')
+    codes = file.readlines()
+    codes[len(codes) - 1] = "# " + codes[len(codes) - 1]
+    file.close()
+    file = open(__file__, "w", encoding='utf-8')
+    file.writelines(codes)
+
+def enableNotifications():
+    file = open(__file__, "r", encoding='utf-8')
+    codes = file.readlines()
+    codes[len(codes) - 1] = "checkUpdates()"
+    file.close()
+    file = open(__file__, "w", encoding='utf-8')
+    file.writelines(codes)
+
 def upgrade():
     from pip._internal import main
     main(['install', '--upgrade', 'sctreeshap'])
 
 def uninstall():
-    tmp = sctreeshap()
-    tmp.clearDownload()
+    clearDownload()
     from pip._internal import main
     main(['uninstall', 'sctreeshap'])
 
@@ -182,6 +219,7 @@ class sctreeshap:
         self.__visited = []
         self.__shapParamsBinary = {
             "max_display": 10,
+            "output": 'probability',
             "bar_plot": True,
             "beeswarm": True,
             "force_plot": False,
@@ -250,7 +288,6 @@ class sctreeshap:
             return None
         if not isinstance(cluster_name, str):
             raise TypeError("in method 'sctreeshap.sctreeshap.setCluster()' (in file '" + __file__ + "'), parameter 'cluster_name' receives " + str(type(cluster_name)) + ", expected <class 'str'>.")
-            return -1
         self.__cluster = cluster_name
         return None
     
@@ -272,6 +309,7 @@ class sctreeshap:
         if shap_params is None:
             self.__shapParamsBinary = {
                 "max_display": 10,
+                "output": 'probability',
                 "bar_plot": True,
                 "beeswarm": True,
                 "force_plot": False,
@@ -415,14 +453,13 @@ class sctreeshap:
                 print('\bdone')
             else:
                 print('\berror!')
-        import sys, os
+        import os
         data_directory = __file__[:-13] + "sctreeshap_data/"
         if not os.path.exists(data_directory) or not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
             print("First time loading. Downloading the partitioned dataset... (427.6 MiB)")
             if not os.path.exists(data_directory):
                 os.mkdir(data_directory)
             import tarfile
-            import bz2
             from pathlib import Path
             if not os.path.exists(data_directory + "tmp"):
                 os.mkdir(data_directory + "tmp")
@@ -609,36 +646,16 @@ class sctreeshap:
 
     # Clear downloaded files from loadDefault().
     def clearDownload(self):
-        import os
-        data_directory = __file__[:-13] + "sctreeshap_data"
-        if os.path.exists(data_directory):
-            tmp = data_directory + "/tmp"
-            if os.path.exists(tmp):
-                target_files = [("INPUT_DATA.h5ad.tar.bz2.part" + (3 - len(str(i))) * '0' + str(i)) for i in range(1, 43)]
-                for files in os.listdir(tmp):
-                    if str(files) in target_files:
-                        os.remove(os.path.join(tmp, files))
-                if len(os.listdir(tmp)) == 0:
-                    os.rmdir(tmp)
-            if os.path.isfile(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2")):
-                os.remove(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"))
-            if os.path.isfile(os.path.join(data_directory, "INPUT_DATA.h5ad")):
-                os.remove(os.path.join(data_directory, "INPUT_DATA.h5ad"))
-            if os.path.isfile(os.path.join(data_directory, "Housekeeping_GenesHuman.csv")):
-                os.remove(os.path.join(data_directory, "Housekeeping_GenesHuman.csv"))
-            if os.path.isfile(os.path.join(data_directory, "Housekeeping_GenesMouse.csv")):
-                os.remove(os.path.join(data_directory, "Housekeeping_GenesMouse.csv"))
-            if len(os.listdir(data_directory)) == 0:
-                os.rmdir(data_directory)
+        clearDownload()
 
     # Read cells from a given directory.
-    # data_directory: PathLike, representing the directory of the file, can be a ['pkl', 'csv', 'loom', 'h5ad'] file, e.g. "~/xhx/Python/neuron_full.pkl";
+    # data_directory: PathLike, representing the directory of the file, can be a ['pkl', 'csv', 'loom', 'h5ad', 'xlsx'] file, e.g. "~/xhx/Python/neuron_full.pkl";
     #           if data_directory is None: use default data directory.
     # branch_name: str, representing the target branch, e.g. "n48";
     #           if branch_name is None: choose default branch; if default is still None, read the whole dataset.
     # cluster_set: a list or tuple of strings containing all target clusters to choose;
     # use_cluster_set: bool, indicating whether to activate choose from cluster_set;
-    # file_type: can be one of ['pkl', 'csv', 'loom', 'h5ad'];
+    # file_type: can be one of ['pkl', 'csv', 'loom', 'h5ad', 'xlsx'];
     # output: can be 'DataFrame' or 'AnnData', which indicates return type.
     # Return: a DataFrame or AnnData object.
     def readData(self, data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, file_type=None, output=None):
@@ -769,7 +786,7 @@ class sctreeshap:
         data_directory = __file__[:-13] + "sctreeshap_data"
         hkg = []
         if category == 'human':
-            import sys, os
+            import os
             files = "Housekeeping_GenesHuman.csv"
             if not os.path.exists(data_directory) or not os.path.isfile(os.path.join(data_directory, files)):
                 from pathlib import Path
@@ -784,7 +801,7 @@ class sctreeshap:
                 lines = lines.split(';')
                 hkg.append(lines[1])
         elif category == 'mouse':
-            import sys, os
+            import os
             files = "Housekeeping_GenesMouse.csv"
             if not os.path.exists(data_directory) or not os.path.isfile(os.path.join(data_directory, files)):
                 from pathlib import Path
@@ -850,7 +867,13 @@ class sctreeshap:
     # use_SMOTE: bool, indicates whether to use smote to oversample the data;
     # nthread: int, the number of running threads;
     # shap_params: dictionary, the shap plot parameters, indicating which kinds of figure to plot.
-    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, nthread=32, shap_params=None):
+    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, nthread=32, shap_params=None):        
+        import shap
+        from xgboost import XGBClassifier
+        from matplotlib import pyplot as plt
+        from imblearn.over_sampling import SMOTE
+        from sklearn.model_selection import train_test_split
+
         def showProcess():
             print(self.__waitingMessage, end="  ")
             while self.__isFinished is False:
@@ -919,16 +942,23 @@ class sctreeshap:
         self.__isFinished = False
         thread_buildShap = threading.Thread(target=showProcess)
         thread_buildShap.start()
-        self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
-        self.__shapValues = self.__explainer.shap_values(x_test, approximate=True)
+        if shap_params is None:
+            shap_params = self.__shapParamsBinary
+        if "output" not in shap_params or (shap_params["output"] != 'raw' and shap_params["output"] != 'probability'):
+            shap_params["output"] = 'raw'
+        if shap_params["output"] == 'raw':
+            self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
+        elif shap_params["output"] == 'probability':
+            self.__explainer = shap.TreeExplainer(self.__XGBClassifer, x_train, model_output='probability')
+        else:
+            raise ValueError(shap_params["output"])
+        self.__shapValues = self.__explainer.shap_values(x_test)
         self.__isFinished = True
         thread_buildShap.join()
         time.sleep(0.2)
 
         # Generating shap figures
         print("Generating shap figures..")
-        if shap_params is None:
-            shap_params = self.__shapParamsBinary
         if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
             shap_params["max_display"] = 10
         self.__maxDisplay = shap_params["max_display"]
@@ -972,6 +1002,12 @@ class sctreeshap:
     # nthread: int, the number of running threads;
     # shap_params: dictionary, the shap plot parameters, indicating which kinds of figure to plot.
     def explainMulti(self, data=None, use_SMOTE=False, nthread=32, shap_params=None):
+        import shap
+        from xgboost import XGBClassifier
+        from matplotlib import pyplot as plt
+        from imblearn.over_sampling import SMOTE
+        from sklearn.model_selection import train_test_split
+
         def showProcess():
             print(self.__waitingMessage, end="  ")
             while not self.__isFinished:
@@ -1049,7 +1085,7 @@ class sctreeshap:
         thread_buildShap = threading.Thread(target=showProcess)
         thread_buildShap.start()
         self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
-        self.__shapValues = self.__explainer.shap_values(x_test, approximate=True)
+        self.__shapValues = self.__explainer.shap_values(x_test)
         self.__isFinished = True
         thread_buildShap.join()
         time.sleep(0.2)
@@ -1685,7 +1721,7 @@ class sctreeshap:
         while True:
             print('* ', end='')
             cmd = input().strip()
-            if cmd[:4] == 'EXIT':
+            if cmd == 'EXIT':
                 return None
             else:
                 if cmd == 'documentations' or cmd == 'apilist':
@@ -2262,3 +2298,5 @@ class sctreeshap:
                         + '|__' + '_' * num_of_spaces + '__|')
                 else:
                     print("Unrecognized item:", cmd)
+
+checkUpdates()
