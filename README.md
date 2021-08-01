@@ -10,11 +10,42 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.7.0 Update
+## v0.7.2 Update
 
-- Optimize import speed.
-- Involve "output='probability'" option in 'shap_params' for explainBinary(); you can now add {key: value} = {"output": 'probability'} to convert raw shap values to probabilities. This does not support for explainMulti.
-- We are now dealing with some problems occurred in shap. Documentation updates and PCA function would be involved in the later versions.
+- Bug fixes.
+- Documentation updated.
+
+In v0.7.x, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using geneFiltering() before setting output as 'probability'.
+
+A sample code is as follows:
+
+```python
+from sctreeshap import sctreeshap
+
+sample = sctreeshap()
+sample_dataset = sample.loadDefault()
+
+print(sample_dataset)
+
+## Select non-neuron branch
+sample_dataset = sample.selectBranch(sample_dataset, 'n70')
+sample_dataset = sample.geneFiltering(sample_dataset, 0.3)
+
+## Run explainer
+sample.explainBinary(sample_dataset, 'Micro L1-3 TYROBP', shap_params = {
+    "model_output": 'probability', # set output mode as 'probability'
+    "bar_plot" : True,
+    "beeswarm" : True,
+    "decision_plot" : True
+})
+
+sample.explainMulti(sample_dataset, shap_params = {
+    "model_output" : 'probability', # set output mode as 'probability'
+    "bar_plot" : True,
+    "beeswarm" : True,
+    "decision_plot" : True
+})
+```
 
 ## Installing sctreeshap
 
@@ -213,7 +244,6 @@ Sample.explainBinary(
     nthread=48, # multi-thread
     shap_params={
         "max_display": 10,
-        "output": 'probability',
         "bar_plot": True,
         "beeswarm": True,
         "force_plot": False,

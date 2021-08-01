@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.7.0"
+__version__ = "0.7.2"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import time
@@ -219,7 +219,7 @@ class sctreeshap:
         self.__visited = []
         self.__shapParamsBinary = {
             "max_display": 10,
-            "output": 'probability',
+            "model_output": 'raw',
             "bar_plot": True,
             "beeswarm": True,
             "force_plot": False,
@@ -228,6 +228,7 @@ class sctreeshap:
         }
         self.__shapParamsMulti = {
             "max_display": 10,
+            "model_output": 'raw',
             "bar_plot": True,
             "beeswarm": False,
             "decision_plot": False
@@ -309,7 +310,7 @@ class sctreeshap:
         if shap_params is None:
             self.__shapParamsBinary = {
                 "max_display": 10,
-                "output": 'probability',
+                "model_output": 'raw',
                 "bar_plot": True,
                 "beeswarm": True,
                 "force_plot": False,
@@ -329,6 +330,7 @@ class sctreeshap:
         if shap_params is None:
             self.__shapParamsMulti = {
                 "max_display": 10,
+                "model_output": 'raw',
                 "bar_plot": True,
                 "beeswarm": False,
                 "decision_plot": False
@@ -780,6 +782,9 @@ class sctreeshap:
         X = np.array(data)
         return ad.AnnData(np.array(data), obs=obs, var=var, dtype="float")
     
+    # Load human or mouse housekeeping gene set.
+    # category: 'human' or 'mouse'.
+    # Return: a list object.
     def loadHousekeeping(self, category):
         if not isinstance(category, str):
             raise TypeError("in method 'sctreeshap.sctreeshap.loadHousekeeping()' (in file '" + __file__ + "'), parameter 'category' receives " + str(type(category)) + ", expected <class 'str'>.")
@@ -916,6 +921,7 @@ class sctreeshap:
         y[y == cluster_name] = True
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
         x_train = x_train.reset_index(drop=True)
+        x_test = x_test.reset_index(drop=True)
         self.__isFinished = True
         thread_preprocessData.join()
         time.sleep(0.2)
@@ -925,7 +931,6 @@ class sctreeshap:
         self.__isFinished = False
         thread_buildModels = threading.Thread(target=showProcess)
         thread_buildModels.start()
-        x_test = x_test.reset_index(drop=True)
         self.__XGBClassifer = XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
         self.__XGBClassifer.fit(x_train, y_train)
         self.__isFinished = True
@@ -944,14 +949,15 @@ class sctreeshap:
         thread_buildShap.start()
         if shap_params is None:
             shap_params = self.__shapParamsBinary
-        if "output" not in shap_params or (shap_params["output"] != 'raw' and shap_params["output"] != 'probability'):
-            shap_params["output"] = 'raw'
-        if shap_params["output"] == 'raw':
+        if "model_output" not in shap_params or (shap_params["model_output"] != 'raw' and shap_params["model_output"] != 'probability'):
+            shap_params["model_output"] = 'raw'
+        if shap_params["model_output"] == 'raw':
             self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
-        elif shap_params["output"] == 'probability':
+        elif shap_params["model_output"] == 'probability':
+            print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
             self.__explainer = shap.TreeExplainer(self.__XGBClassifer, x_train, model_output='probability')
         else:
-            raise ValueError(shap_params["output"])
+            raise ValueError(shap_params["model_output"])
         self.__shapValues = self.__explainer.shap_values(x_test)
         self.__isFinished = True
         thread_buildShap.join()
@@ -977,7 +983,7 @@ class sctreeshap:
             plt.show()
         if "force_plot" in shap_params and shap_params["force_plot"]:
             print("     Drawing force plot..")
-            print("     \033[1;33;40mWarning:\033[0m: force plot has not been stably supported yet.")
+            print("     \033[1;33;40mWarning:\033[0m: Force plot has not been stably supported yet.")
             shap.initjs()
             shap.plots.force(self.__explainer.expected_value, self.__shapValues, x_test, feature_names=self.__featureNames, show=False)
         if "heat_map" in shap_params and shap_params["heat_map"]:
@@ -992,8 +998,7 @@ class sctreeshap:
             plt.title("Target Cluster: " + cluster_name)
             y_pred = pd.DataFrame(y_pred).to_numpy()
             x_target = x_test[y_pred == 1]
-            shap_values = self.__explainer.shap_values(x_target, approximate=True)
-            shap.decision_plot(self.__explainer.expected_value, shap_values, x_target, link='logit', show=False)
+            shap.decision_plot(self.__explainer.expected_value, self.__explainer.shap_values(x_target), x_target, link='logit', show=False)
             plt.show()
 
     # Do multi-classification and generate shap figures.
@@ -1023,125 +1028,254 @@ class sctreeshap:
                 print('\bdone')
             else:
                 print('\berror!')
-
-        # Preprocessing data
-        self.__waitingMessage = "Preprocessing data.."
-        self.__isFinished = False
-        thread_preprocessData = threading.Thread(target=showProcess)
-        thread_preprocessData.start()
-        if data is None:
-            data = self.__dataSet
-        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            self.__isFinished = "Error"
-            thread_preprocessData.join()
-            time.sleep(0.2)
-            raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
-        if isinstance(data, ad._core.anndata.AnnData):
-            data = self.AnnData_to_DataFrame(data)
-        cluster = data.columns.values[-1]
-        y = np.array(data[cluster])
-        x = data.drop(columns=[cluster])
-        if use_SMOTE:
-            oversample = SMOTE()
-            x, y = oversample.fit_resample(x, y)
-        self.numOfClusters = 0
-        self.clusterDict = {}
-        [rows] = y.shape
-        for i in range(rows):
-            if y[i] in self.clusterDict:
-                y[i] = self.clusterDict[y[i]]
-            else:
-                self.clusterDict[y[i]] = self.numOfClusters
-                y[i] = self.numOfClusters
-                self.numOfClusters += 1
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
-        x_train = x_train.reset_index(drop=True)
-        self.__isFinished = True
-        thread_preprocessData.join()
-        time.sleep(0.2)
-        for key in self.clusterDict.keys():
-            print("     " + key + ": Class", self.clusterDict[key])
-
-        # Building the model
-        self.__waitingMessage = "Building xgboost models.."
-        self.__isFinished = False
-        thread_buildModels = threading.Thread(target=showProcess)
-        thread_buildModels.start()
-        x_test = x_test.reset_index(drop=True)
-        self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
-        self.__XGBClassifer.fit(x_train, y_train)
-        self.__isFinished = True
-        thread_buildModels.join()
-
-        # Cross validation
-        y_pred = self.__XGBClassifer.predict(x_test)
-        accuracy = np.sum(y_pred == y_test) / len(y_pred) * 100
-        print("Accuracy: %.4g%%" % accuracy)
-        time.sleep(0.2)
-
-        # Building the shap explainer
-        self.__waitingMessage = "Building shap explainers.."
-        self.__isFinished = False
-        thread_buildShap = threading.Thread(target=showProcess)
-        thread_buildShap.start()
-        self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
-        self.__shapValues = self.__explainer.shap_values(x_test)
-        self.__isFinished = True
-        thread_buildShap.join()
-        time.sleep(0.2)
-
-        # Generating shap figures
-        print("Generating shap figures..")
+        
         if shap_params is None:
             shap_params = self.__shapParamsMulti
-        if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
-            shap_params["max_display"] = 10
-        self.__maxDisplay = shap_params["max_display"]
-        self.__featureNames = x.columns.values
-        if "bar_plot" in shap_params and shap_params["bar_plot"]:
-            print("     Drawing bar plot..")
-            plt.figure(1)
-            shap.summary_plot(self.__shapValues, x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
-            plt.show()
-        if "beeswarm" in shap_params and shap_params["beeswarm"]:
-            print("     Drawing beeswarm plot..")
-            print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
-            print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
-            figure = plt.figure(2)
-            rows = self.numOfClusters // 2 + self.numOfClusters % 2
-            cols = 2
-            index = 1
+        if "model_output" not in shap_params or (shap_params["model_output"] != 'raw' and shap_params["model_output"] != 'probability'):
+            shap_params["model_output"] = 'raw'
+        
+        if shap_params["model_output"] == 'raw':
+            # Preprocessing data
+            self.__waitingMessage = "Preprocessing data.."
+            self.__isFinished = False
+            thread_preprocessData = threading.Thread(target=showProcess)
+            thread_preprocessData.start()
+            if data is None:
+                data = self.__dataSet
+            if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+                self.__isFinished = "Error"
+                thread_preprocessData.join()
+                time.sleep(0.2)
+                raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
+            if isinstance(data, ad._core.anndata.AnnData):
+                data = self.AnnData_to_DataFrame(data)
+            cluster = data.columns.values[-1]
+            y = np.array(data[cluster])
+            x = data.drop(columns=[cluster])
+            if use_SMOTE:
+                oversample = SMOTE()
+                x, y = oversample.fit_resample(x, y)
+            self.numOfClusters = 0
+            self.clusterDict = {}
+            [rows] = y.shape
+            for i in range(rows):
+                if y[i] in self.clusterDict:
+                    y[i] = self.clusterDict[y[i]]
+                else:
+                    self.clusterDict[y[i]] = self.numOfClusters
+                    y[i] = self.numOfClusters
+                    self.numOfClusters += 1
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
+            x_train = x_train.reset_index(drop=True)
+            x_test = x_test.reset_index(drop=True)
+            self.__isFinished = True
+            thread_preprocessData.join()
+            time.sleep(0.2)
             for key in self.clusterDict.keys():
-                print("         Drawing cluster " + key + "...")
-                figure_sub = figure.add_subplot(rows, cols, index)
-                figure_sub.set_title("Target Cluster: " + key, fontsize=36)
-                shap.summary_plot(self.__shapValues[self.clusterDict[key]], x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
-                index += 1
-            figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
-            plt.show()
-        if "decision_plot" in shap_params and shap_params["decision_plot"]:
-            print("     Drawing decision plot..")
-            print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
-            print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
-            y_pred = pd.DataFrame(self.__XGBClassifer.predict_proba(x_test))
-            figure = plt.figure(3)
-            rows = self.numOfClusters // 2 + self.numOfClusters % 2
-            cols = 2
-            index = 1
+                print("     " + key + ": Class", self.clusterDict[key])
+
+            # Building the model
+            self.__waitingMessage = "Building xgboost models.."
+            self.__isFinished = False
+            thread_buildModels = threading.Thread(target=showProcess)
+            thread_buildModels.start()
+            self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
+            self.__XGBClassifer.fit(x_train, y_train)
+            self.__isFinished = True
+            thread_buildModels.join()
+
+            # Cross validation
+            y_pred = self.__XGBClassifer.predict(x_test)
+            accuracy = np.sum(y_pred == y_test) / len(y_pred) * 100
+            print("Accuracy: %.4g%%" % accuracy)
+            time.sleep(0.2)
+
+            # Building the shap explainer
+            self.__waitingMessage = "Building shap explainers.."
+            self.__isFinished = False
+            thread_buildShap = threading.Thread(target=showProcess)
+            thread_buildShap.start()
+            self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
+            self.__shapValues = self.__explainer.shap_values(x_test)
+            self.__isFinished = True
+            thread_buildShap.join()
+            time.sleep(0.2)
+
+            # Generating shap figures
+            print("Generating shap figures..")
+            if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
+                shap_params["max_display"] = 10
+            self.__maxDisplay = shap_params["max_display"]
+            self.__featureNames = x.columns.values
+            if "bar_plot" in shap_params and shap_params["bar_plot"]:
+                print("     Drawing bar plot..")
+                plt.figure(1)
+                shap.summary_plot(self.__shapValues, x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
+                plt.show()
+            if "beeswarm" in shap_params and shap_params["beeswarm"]:
+                print("     Drawing beeswarm plot..")
+                print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
+                print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
+                figure = plt.figure(2)
+                rows = self.numOfClusters // 2 + self.numOfClusters % 2
+                cols = 2
+                index = 1
+                for key in self.clusterDict.keys():
+                    print("         Drawing cluster " + key + "...")
+                    figure_sub = figure.add_subplot(rows, cols, index)
+                    figure_sub.set_title("Target Cluster: " + key, fontsize=36)
+                    shap.summary_plot(self.__shapValues[self.clusterDict[key]], x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
+                    index += 1
+                figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
+                plt.show()
+            if "decision_plot" in shap_params and shap_params["decision_plot"]:
+                print("     Drawing decision plot..")
+                print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
+                print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
+                y_pred = pd.DataFrame(self.__XGBClassifer.predict_proba(x_test))
+                figure = plt.figure(3)
+                rows = self.numOfClusters // 2 + self.numOfClusters % 2
+                cols = 2
+                index = 1
+                for key in self.clusterDict.keys():
+                    print("         Drawing cluster " + key + "...")
+                    y_pred_i = y_pred[y_pred.columns[self.clusterDict[key]]].to_numpy()
+                    x_target = x_test[y_pred_i >= 0.9]
+                    if len(x_target) == 0:
+                        print("         \033[1;33;40mWarning:\033[0m Empty dataset, skipped. Try setting 'use_SMOTE=True'.")
+                        index -= 1
+                        continue
+                    figure_sub = figure.add_subplot(rows, cols, index)
+                    figure_sub.set_title("Target Cluster: " + key, fontsize=36)
+                    shap.decision_plot(self.__explainer.expected_value[self.clusterDict[key]], self.__explainer.shap_values(x_target)[self.clusterDict[key]], x_target, link='logit', show=False)
+                    index += 1
+                figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
+                plt.show()
+        elif shap_params["model_output"] == 'probability':
+            # Preprocessing data
+            self.__waitingMessage = "Preprocessing data.."
+            self.__isFinished = False
+            thread_preprocessData = threading.Thread(target=showProcess)
+            thread_preprocessData.start()
+            if data is None:
+                data = self.__dataSet
+            if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+                self.__isFinished = "Error"
+                thread_preprocessData.join()
+                time.sleep(0.2)
+                raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
+            if isinstance(data, ad._core.anndata.AnnData):
+                data = self.AnnData_to_DataFrame(data)
+            cluster = data.columns.values[-1]
+            y = np.array(data[cluster])
+            x = data.drop(columns=[cluster])
+            if use_SMOTE:
+                oversample = SMOTE()
+                x, y = oversample.fit_resample(x, y)
+            self.numOfClusters = 0
+            self.clusterDict = {}
+            [rows] = y.shape
+            for i in range(rows):
+                if y[i] in self.clusterDict:
+                    y[i] = self.clusterDict[y[i]]
+                else:
+                    self.clusterDict[y[i]] = self.numOfClusters
+                    y[i] = self.numOfClusters
+                    self.numOfClusters += 1
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
+            x_train = x_train.reset_index(drop=True)
+            x_test = x_test.reset_index(drop=True)
+            y_train = [np.array(y_train) for i in range(self.numOfClusters)]
+            y_train[0][y_train[0] == 0] = -1
+            y_train[0][y_train[0] > 0] = False
+            y_train[0][y_train[0] < 0] = True
+            for i in range(1, self.numOfClusters):
+                y_train[i][y_train[i] != i] = False
+                y_train[i][y_train[i] == i] = True
+            self.__isFinished = True
+            thread_preprocessData.join()
+            time.sleep(0.2)
             for key in self.clusterDict.keys():
-                print("         Drawing cluster " + key + "...")
-                y_pred_i = y_pred[y_pred.columns[self.clusterDict[key]]].to_numpy()
-                x_target = x_test[y_pred_i >= 0.9]
-                if len(x_target) == 0:
-                    print("         \033[1;33;40mWarning:\033[0m empty dataset, skipped. Try setting 'use_SMOTE=True'.")
-                    index -= 1
-                    continue
-                figure_sub = figure.add_subplot(rows, cols, index)
-                figure_sub.set_title("Target Cluster: " + key, fontsize=36)
-                shap.decision_plot(self.__explainer.expected_value[self.clusterDict[key]], self.__explainer.shap_values(x_target)[self.clusterDict[key]], x_target, link='logit', show=False)
-                index += 1
-            figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
-            plt.show()
+                print("     " + key + ": Class", self.clusterDict[key])
+
+            # Building the model
+            self.__waitingMessage = "Building xgboost models.."
+            self.__isFinished = False
+            thread_buildModels = threading.Thread(target=showProcess)
+            thread_buildModels.start()
+            self.__XGBClassifer = [XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False).fit(x_train, y_train[i]) for i in range(self.numOfClusters)]
+            self.__isFinished = True
+            thread_buildModels.join()
+
+            # Cross validation
+            y_pred = [self.__XGBClassifer[i].predict_proba(x_test)[:,1] for i in range(self.numOfClusters)]
+            y_pred_multi = np.argmax(y_pred, axis=0)
+            accuracy = np.sum(y_pred_multi == y_test) / y_pred_multi.shape[0] * 100
+            print("Accuracy: %.4g%%" % accuracy)
+            time.sleep(0.2)
+
+            # Building the shap explainer
+            self.__waitingMessage = "Building shap explainers.."
+            self.__isFinished = False
+            thread_buildShap = threading.Thread(target=showProcess)
+            thread_buildShap.start()
+            print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
+            self.__explainer = [shap.TreeExplainer(self.__XGBClassifer[i], x_train, model_output='probability') for i in range(self.numOfClusters)]
+            self.__shapValues = [self.__explainer[i].shap_values(x_test) for i in range(self.numOfClusters)]
+            self.__isFinished = True
+            thread_buildShap.join()
+            time.sleep(0.2)
+
+            # Generating shap figures
+            print("Generating shap figures..")
+            if "max_display" not in shap_params or not isinstance(shap_params["max_display"], int):
+                shap_params["max_display"] = 10
+            self.__maxDisplay = shap_params["max_display"]
+            self.__featureNames = x.columns.values
+            if "bar_plot" in shap_params and shap_params["bar_plot"]:
+                print("     Drawing bar plot..")
+                plt.figure(1)
+                shap.summary_plot(self.__shapValues, x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
+                plt.show()
+            if "beeswarm" in shap_params and shap_params["beeswarm"]:
+                print("     Drawing beeswarm plot..")
+                print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
+                print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
+                figure = plt.figure(2)
+                rows = self.numOfClusters // 2 + self.numOfClusters % 2
+                cols = 2
+                index = 1
+                for key in self.clusterDict.keys():
+                    print("         Drawing cluster " + key + "...")
+                    figure_sub = figure.add_subplot(rows, cols, index)
+                    figure_sub.set_title("Target Cluster: " + key, fontsize=36)
+                    shap.summary_plot(self.__shapValues[self.clusterDict[key]], x_test, feature_names=self.__featureNames, max_display=self.__maxDisplay, show=False)
+                    index += 1
+                figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
+                plt.show()
+            if "decision_plot" in shap_params and shap_params["decision_plot"]:
+                print("     Drawing decision plot..")
+                print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
+                print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
+                figure = plt.figure(3)
+                rows = self.numOfClusters // 2 + self.numOfClusters % 2
+                cols = 2
+                index = 1
+                for key in self.clusterDict.keys():
+                    print("         Drawing cluster " + key + "...")
+                    x_target = x_test[y_pred[self.clusterDict[key]] >= 0.9]
+                    if len(x_target) == 0:
+                        print("         \033[1;33;40mWarning:\033[0m Empty dataset, skipped. Try setting 'use_SMOTE=True'.")
+                        index -= 1
+                        continue
+                    figure_sub = figure.add_subplot(rows, cols, index)
+                    figure_sub.set_title("Target Cluster: " + key, fontsize=36)
+                    shap.decision_plot(self.__explainer[self.clusterDict[key]].expected_value, self.__explainer[self.clusterDict[key]].shap_values(x_target), x_target, link='logit', show=False)
+                    index += 1
+                figure.subplots_adjust(right=5, top=rows*3.5, hspace=0.2, wspace=0.2)
+                plt.show()
+        else:
+            raise ValueError(shap_params["model_output"])
     
     def help(self, cmd=None):
         num_of_spaces = 110
@@ -1169,6 +1303,7 @@ class sctreeshap:
             mergeBranch = 'mergeBranch(): merge all clusters under a given branch.'
             AnnData_to_DataFrame = 'AnnData_to_DataFrame(): convert AnnData to DataFrame.'
             DataFrame_to_AnnData = 'DataFrame_to_AnnData(): convert DataFrame to AnnData.'
+            loadHouseKeeping = 'loadHousekeeping(): load human or mouse housekeeping gene set.'
             geneFiltering = 'geneFiltering(): filter genes customly.'
             analysis = '\033[1;37;40mAnalysis:\033[0m'
             explainBinary = 'explainBinary(): do binary classification and generate shap figures.'
@@ -1204,6 +1339,7 @@ class sctreeshap:
                 + '|  ' + mergeBranch + ' ' * (num_of_spaces - len(mergeBranch)) + '  |\n' \
                 + '|  ' + AnnData_to_DataFrame + ' ' * (num_of_spaces - len(AnnData_to_DataFrame)) + '  |\n' \
                 + '|  ' + DataFrame_to_AnnData + ' ' * (num_of_spaces - len(DataFrame_to_AnnData)) + '  |\n' \
+                + '|  ' + loadHouseKeeping + ' ' * (num_of_spaces - len(loadHouseKeeping)) + '  |\n' \
                 + '|  ' + geneFiltering + ' ' * (num_of_spaces - len(geneFiltering)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + analysis + ' ' * (num_of_spaces - len(analysis) + 14) + '  |\n' \
@@ -1329,9 +1465,11 @@ class sctreeshap:
             api = 'sctreeshap.sctreeshap.setShapParamsBinary(shap_params=None)'
             description =                   'Description: set default shap plots parameters of explainBinary().'
             shap_params =                          'Parameters:  shap_params: dictionary'
-            shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-            shap_params_description2 =             '             |  Default values: [10, True, True, False, False, False]'
-            shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
+            shap_params_description1 =             '             |  Keys: ["max_display", "model_output", "bar_plot", "beeswarm", "force_plot", "heat_map",' 
+            shap_params_description2 =             '             |  "decision_plot"]'
+            shap_params_description3 =             "             |  Default values: [10, 'raw', True, True, False, False, False]"
+            shap_params_description4 =             '             |  Determine the maximum number of genes you want to depict, whether to take raw shapley values '
+            shap_params_description5 =             '             |  or probabilities as output, and what kinds of figures to output.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1344,15 +1482,18 @@ class sctreeshap:
                 + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
                 + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
+                + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
+                + '|  ' + shap_params_description5 + ' ' * (num_of_spaces - len(shap_params_description5)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'setShapParamsMulti':
             function = '\033[1;37;40msctreeshap.sctreeshap.setShapParamsMulti\033[0m'
             api = 'sctreeshap.sctreeshap.setShapParamsMulti(shap_params=None)'
             description =                   'Description: set default shap plots parameters of explainMulti().'
             shap_params =                          'Parameters:  shap_params: dictionary'
-            shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
-            shap_params_description2 =             '             |  Default values: [10, True, False, False]'
-            shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
+            shap_params_description1 =             '             |  Keys: ["max_display", "model_output", "bar_plot", "beeswarm", "decision_plot"]'
+            shap_params_description2 =             "             |  Default values: [10, 'raw', True, False, False]"
+            shap_params_description3 =             '             |  Determine the maximum number of genes you want to depict, whether to take raw shapley values '
+            shap_params_description4 =             '             |  or probabilities as output, and what kinds of figures to output.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1365,6 +1506,7 @@ class sctreeshap:
                 + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
                 + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
+                + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'findCluster':
             function = '\033[1;37;40msctreeshap.sctreeshap.findCluster\033[0m'
@@ -1567,6 +1709,26 @@ class sctreeshap:
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
+        if cmd == 'loadHousekeeping':
+            function = '\033[1;37;40msctreeshap.sctreeshap.loadHousekeeping\033[0m'
+            api = 'sctreeshap.sctreeshap.loadHousekeeping(category)'
+            description =                   'Description: load human or mouse housekeeping gene set.'
+            category =                      "Parameters:  category: 'human' or 'mouse'"
+            category_description1 =         '             |  Determine which housekeeping gene set to return.'
+            return_description =            'Return:      list.'
+            return ' __' + '_' * num_of_spaces + '__ \n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + category + ' ' * (num_of_spaces - len(category)) + '  |\n' \
+                + '|  ' + category_description1 + ' ' * (num_of_spaces - len(category_description1)) + '  |\n' \
+                + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
+                + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
+                + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'geneFiltering':
             function = '\033[1;37;40msctreeshap.sctreeshap.geneFiltering\033[0m'
             api = 'sctreeshap.sctreeshap.geneFiltering(data=None, min_partial=None, gene_set=None, gene_prefix=None)'
@@ -1610,10 +1772,11 @@ class sctreeshap:
             nthread =                       '             nthread: int'
             nthread_description1 =          '             |  The number of running threads.'
             shap_params =                   '             shap_params: dictionary'
-            shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-            shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
-            shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
-            shap_params_description4 =      '             |  output this kind of shap figures.'
+            shap_params_description1 =      '             |  Keys: ["max_display", "model_output", "bar_plot", "beeswarm", "force_plot", "heat_map", '
+            shap_params_description2 =      '             |  "decision_plot"]'
+            shap_params_description3 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
+            shap_params_description4 =      '             |  in shap figures, "model_output" can be "raw" or "probability", while each other key is '
+            shap_params_description5 =      '             |  reflected to a bool which indicates whether to output this kind of shap figures.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1635,6 +1798,7 @@ class sctreeshap:
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
                 + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
                 + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
+                + '|  ' + shap_params_description5 + ' ' * (num_of_spaces - len(shap_params_description5)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'explainMulti':
             function = '\033[1;37;40msctreeshap.sctreeshap.explainMulti\033[0m'
@@ -1646,10 +1810,10 @@ class sctreeshap:
             nthread =                       '             nthread: int'
             nthread_description1 =          '             |  The number of running threads.'
             shap_params =                   '             shap_params: dictionary'
-            shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
+            shap_params_description1 =      '             |  Keys: ["max_display", "model_output", "bar_plot", "beeswarm", "decision_plot"]'
             shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
-            shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
-            shap_params_description4 =      '             |  output this kind of shap figures.'
+            shap_params_description3 =      '             |  in shap figures, "model_output" can be "raw" or "probability", while each other key is '
+            shap_params_description4 =      '             |  reflected to a bool which indicates whether to output this kind of shap figures.'
             return ' __' + '_' * num_of_spaces + '__ \n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
@@ -1717,586 +1881,13 @@ class sctreeshap:
                 + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd != None:
-            return "Function " + cmd + " not found!"
+            return "Function '" + cmd + "' not found!"
         while True:
             print('* ', end='')
             cmd = input().strip()
             if cmd == 'EXIT':
                 return None
             else:
-                if cmd == 'documentations' or cmd == 'apilist':
-                    documentations = '                                              \033[1;37;40mDocumentations\033[0m                                  '
-                    nameAndVersion = '                                            ' + __name__ + ': v' + __version__
-                    initialization = '\033[1;37;40mInitializations:\033[0m'
-                    sctreeshap = 'sctreeshap(): construct a sctreeshap object.'
-                    settings = '\033[1;37;40mSettings:\033[0m'
-                    setDataDirectory = 'setDataDirectory(): set default data directory.'
-                    setDataSet = 'setDataSet(): set default dataset.'
-                    setBranch = 'setBranch(): set default branch.'
-                    setCluster = 'setCluster(): set default cluster.'
-                    setClusterSet = 'setClusterSet(): set default target cluster set.'
-                    setShapParamsBinary = 'setShapParamsBinary(): set default shap plots parameters of explainBinary().'
-                    setShapParamsMulti = 'setShapParamsMulti(): set default shap plots parameters of explainMulti().'
-                    findCluster = 'findCluster(): find which branch a given cluster is in.'
-                    listBranch = 'listBranch(): list the clusters of a given branch.'
-                    loadDefault = 'loadDefault(): load default dataset and build default cluster tree.'
-                    clearDownload = 'clearDownload(): clear downloaded files from loadDefault().'
-                    dataprocessing = '\033[1;37;40mData processing:\033[0m'
-                    readData = 'readData(): read cells from a given directory.'
-                    selectBranch = 'selectBranch(): select cells whose cluster is under the given branch or in given cluster set.'
-                    mergeBranch = 'mergeBranch(): merge all clusters under a given branch.'
-                    AnnData_to_DataFrame = 'AnnData_to_DataFrame(): convert AnnData to DataFrame.'
-                    DataFrame_to_AnnData = 'DataFrame_to_AnnData(): convert DataFrame to AnnData.'
-                    geneFiltering = 'geneFiltering(): filter genes customly.'
-                    analysis = '\033[1;37;40mAnalysis:\033[0m'
-                    explainBinary = 'explainBinary(): do binary classification and generate shap figures.'
-                    explainMulti = 'explainMulti(): do multi-classification and generate shap figures.'
-                    getClassifier = "getClassifier(): get XGBClassifier of the last job (available after 'explainBinary()' or 'explainMulti()')."
-                    getExplainer = "getExplainer(): get shap explainer of the last job (available after 'explainBinary()' or 'explainMulti()')."
-                    getShapValues = "getShapValues(): get shap values of the last job (available after 'explainBinary()' or 'explainMulti()')."
-                    getTopGenes = "getTopGenes(): get top genes of max absolute mean shap values."
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + documentations + ' ' * (num_of_spaces - len(documentations) + 14) + '  |\n' \
-                        + '|  ' + nameAndVersion + ' ' * (num_of_spaces - len(nameAndVersion)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + initialization + ' ' * (num_of_spaces - len(initialization) + 14) + '  |\n' \
-                        + '|  ' + sctreeshap + ' ' * (num_of_spaces - len(sctreeshap)) + '  |\n' \
-                        + '|  ' + findCluster + ' ' * (num_of_spaces - len(findCluster)) + '  |\n' \
-                        + '|  ' + listBranch + ' ' * (num_of_spaces - len(listBranch)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + settings + ' ' * (num_of_spaces - len(settings) + 14) + '  |\n' \
-                        + '|  ' + setDataDirectory + ' ' * (num_of_spaces - len(setDataDirectory)) + '  |\n' \
-                        + '|  ' + setDataSet + ' ' * (num_of_spaces - len(setDataSet)) + '  |\n' \
-                        + '|  ' + setBranch + ' ' * (num_of_spaces - len(setBranch)) + '  |\n' \
-                        + '|  ' + setCluster + ' ' * (num_of_spaces - len(setCluster)) + '  |\n' \
-                        + '|  ' + setClusterSet + ' ' * (num_of_spaces - len(setClusterSet)) + '  |\n' \
-                        + '|  ' + setShapParamsBinary + ' ' * (num_of_spaces - len(setShapParamsBinary)) + '  |\n' \
-                        + '|  ' + setShapParamsMulti + ' ' * (num_of_spaces - len(setShapParamsMulti)) + '  |\n' \
-                        + '|  ' + loadDefault + ' ' * (num_of_spaces - len(loadDefault)) + '  |\n' \
-                        + '|  ' + clearDownload + ' ' * (num_of_spaces - len(clearDownload)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + dataprocessing + ' ' * (num_of_spaces - len(dataprocessing) + 14) + '  |\n' \
-                        + '|  ' + readData + ' ' * (num_of_spaces - len(readData)) + '  |\n' \
-                        + '|  ' + selectBranch + ' ' * (num_of_spaces - len(selectBranch)) + '  |\n' \
-                        + '|  ' + mergeBranch + ' ' * (num_of_spaces - len(mergeBranch)) + '  |\n' \
-                        + '|  ' + AnnData_to_DataFrame + ' ' * (num_of_spaces - len(AnnData_to_DataFrame)) + '  |\n' \
-                        + '|  ' + DataFrame_to_AnnData + ' ' * (num_of_spaces - len(DataFrame_to_AnnData)) + '  |\n' \
-                        + '|  ' + geneFiltering + ' ' * (num_of_spaces - len(geneFiltering)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + analysis + ' ' * (num_of_spaces - len(analysis) + 14) + '  |\n' \
-                        + '|  ' + explainBinary + ' ' * (num_of_spaces - len(explainBinary)) + '  |\n' \
-                        + '|  ' + explainMulti + ' ' * (num_of_spaces - len(explainMulti)) + '  |\n' \
-                        # + '|  ' + getClassifier + ' ' * (num_of_spaces - len(getClassifier)) + '  |\n' \
-                        # + '|  ' + getExplainer + ' ' * (num_of_spaces - len(getExplainer)) + '  |\n' \
-                        + '|  ' + getShapValues + ' ' * (num_of_spaces - len(getShapValues)) + '  |\n' \
-                        + '|  ' + getTopGenes + ' ' * (num_of_spaces - len(getTopGenes)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'sctreeshap':
-                    function = '\033[1;37;40msctreeshap.sctreeshap\033[0m'
-                    api = 'class sctreeshap.sctreeshap(tree_arr=None)'
-                    description =               'Description:   Construct a sctreeshap object.'
-                    tree_arr =                  'Parameters:    tree_arr: dictionary'
-                    tree_arr_description1 =     '               |  tree_arr[str] represents the node of name str in the cluster tree, can be a list or a tuple'
-                    tree_arr_description2 =     '               |  of strings, representing the name of childs of the node (from left to right).'
-                    tree_arr_description3 =     "               |  e.g. tree_arr['n1'] = ('n2', 'n70') represents a node named 'n1', whose left child is 'n2' "
-                    tree_arr_description4 =     "               |  and right child is 'n70'."
-                    tree_arr_description5 =     '               |  Note that you do not need to create nodes for clusters, since they are leaf nodes and have'
-                    tree_arr_description6 =     '               |  no childs.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + tree_arr + ' ' * (num_of_spaces - len(tree_arr)) + '  |\n' \
-                        + '|  ' + tree_arr_description1 + ' ' * (num_of_spaces - len(tree_arr_description1)) + '  |\n' \
-                        + '|  ' + tree_arr_description2 + ' ' * (num_of_spaces - len(tree_arr_description2)) + '  |\n' \
-                        + '|  ' + tree_arr_description3 + ' ' * (num_of_spaces - len(tree_arr_description3)) + '  |\n' \
-                        + '|  ' + tree_arr_description4 + ' ' * (num_of_spaces - len(tree_arr_description4)) + '  |\n' \
-                        + '|  ' + tree_arr_description5 + ' ' * (num_of_spaces - len(tree_arr_description5)) + '  |\n' \
-                        + '|  ' + tree_arr_description6 + ' ' * (num_of_spaces - len(tree_arr_description6)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setDataDirectory':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setDataDirectory\033[0m'
-                    api = 'sctreeshap.sctreeshap.setDataDirectory(data_directory=None)'
-                    description =                   'Description: set default data directory.'
-                    data_directory =                'Parameters:  data_directory: PathLike'
-                    data_directory_description1 =   '             |  The directory of default input file, can be a .pkl file or a .csv file.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data_directory + ' ' * (num_of_spaces - len(data_directory)) + '  |\n' \
-                        + '|  ' + data_directory_description1 + ' ' * (num_of_spaces - len(data_directory_description1)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setDataSet':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setDataSet\033[0m'
-                    api = 'sctreeshap.sctreeshap.setDataSet(data=None)'
-                    description =                   'Description: set default dataset.'
-                    data =                          'Parameters:  data: DataFrame or AnnData'
-                    data_description1 =             '             |  The default dataset.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + data_description1 + ' ' * (num_of_spaces - len(data_description1)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setBranch':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setBranch\033[0m'
-                    api = 'sctreeshap.sctreeshap.setBranch(branch_name=None)'
-                    description =                   'Description: set default branch.'
-                    branch_name =                          'Parameters:  branch_name: str'
-                    branch_name_description1 =             '             |  The default branch.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
-                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setCluster':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setCluster\033[0m'
-                    api = 'sctreeshap.sctreeshap.setCluster(cluster_name=None)'
-                    description =                   'Description: set default cluster.'
-                    cluster_name =                          'Parameters:  cluster_name: str'
-                    cluster_name_description1 =             '             |  The default cluster for binary classification.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + cluster_name + ' ' * (num_of_spaces - len(cluster_name)) + '  |\n' \
-                        + '|  ' + cluster_name_description1 + ' ' * (num_of_spaces - len(cluster_name_description1)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setClusterSet':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setClusterSet\033[0m'
-                    api = 'sctreeshap.sctreeshap.setClusterSet(cluster_set=None)'
-                    description =                   'Description: set default target cluster set.'
-                    cluster_set =                          'Parameters:  cluster_set: list or tuple'
-                    cluster_set_description1 =             '             |  A list or tuple of strings to select data whose cluster is within it.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + cluster_set + ' ' * (num_of_spaces - len(cluster_set)) + '  |\n' \
-                        + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setShapParamsBinary':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setShapParamsBinary\033[0m'
-                    api = 'sctreeshap.sctreeshap.setShapParamsBinary(shap_params=None)'
-                    description =                   'Description: set default shap plots parameters of explainBinary().'
-                    shap_params =                          'Parameters:  shap_params: dictionary'
-                    shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-                    shap_params_description2 =             '             |  Default values: [10, True, True, False, False, False]'
-                    shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
-                        + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
-                        + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
-                        + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'setShapParamsMulti':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.setShapParamsMulti\033[0m'
-                    api = 'sctreeshap.sctreeshap.setShapParamsMulti(shap_params=None)'
-                    description =                   'Description: set default shap plots parameters of explainMulti().'
-                    shap_params =                          'Parameters:  shap_params: dictionary'
-                    shap_params_description1 =             '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
-                    shap_params_description2 =             '             |  Default values: [10, True, False, False]'
-                    shap_params_description3 =             '             |  Determine what kinds of figures to output, and maximum number of genes you want to depict.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
-                        + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
-                        + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
-                        + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'findCluster':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.findCluster\033[0m'
-                    api = 'sctreeshap.sctreeshap.findCluster(cluster_name=None)'
-                    description =                   'Description: find which branch a given cluster is in.'
-                    cluster_name =                          'Parameters:  cluster_name: str'
-                    cluster_name_description1 =             '             |  The target cluster.'
-                    return_description =                    'Return:      str, the path from root to the cluster.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + cluster_name + ' ' * (num_of_spaces - len(cluster_name)) + '  |\n' \
-                        + '|  ' + cluster_name_description1 + ' ' * (num_of_spaces - len(cluster_name_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'listBranch':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.listBranch\033[0m'
-                    api = 'sctreeshap.sctreeshap.listBranch(branch_name=None)'
-                    description =                   'Description: list the clusters of a given branch'
-                    branch_name =                          'Parameters:  branch_name: str'
-                    branch_name_description1 =             '             |  The target branch.'
-                    return_description =                    'Return:      list, all clusters under the branch.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
-                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'loadDefault':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.loadDefault\033[0m'
-                    api = "sctreeshap.sctreeshap.loadDefault()"
-                    description =                   'Description: load default dataset and build default cluster tree.'
-                    return_description =                      'Return:      AnnData.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'clearDownload':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.clearDownload\033[0m'
-                    api = "sctreeshap.sctreeshap.clearDownload()"
-                    description =                   'Description: clear downloaded files from loadDefault().'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'readData':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.readData\033[0m'
-                    api = "sctreeshap.sctreeshap.readData(data_directory=None, branch_name=None, cluster_set=[], use_cluster_set=False, "
-                    api1 = "file_type=None, output=None)"
-                    description =                   'Description: read cells from a given directory.'
-                    data_directory =                          'Parameters:  data_directory: PathLike'
-                    data_directory_description1 =             "             |  The directory of the input file, can be a ['pkl', 'csv', 'loom', 'h5ad', 'xlsx'] file."
-                    branch_name =                             '             branch_name: str'
-                    branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
-                    cluster_set =                             '             cluster_set: list or tuple'
-                    cluster_set_description1 =                '             |  A list or tuple of strings representing the target clusters.'
-                    use_cluster_set =                         '             use_cluster_set: bool'
-                    use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
-                    file_type =                               '             file_type: str'
-                    file_type_description1 =                  "             |  Can be one of ['pkl', 'csv', 'loom', 'h5ad', 'xlsx']."
-                    output =                                  "             output: 'DataFrame' or 'AnnData'"
-                    output_description1 =                     '             |  Determine the return type of the function.'
-                    return_description =                      'Return:      AnnData or DataFrame.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + api1 + ' ' * (num_of_spaces - len(api1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data_directory + ' ' * (num_of_spaces - len(data_directory)) + '  |\n' \
-                        + '|  ' + data_directory_description1 + ' ' * (num_of_spaces - len(data_directory_description1)) + '  |\n' \
-                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
-                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
-                        + '|  ' + cluster_set + ' ' * (num_of_spaces - len(cluster_set)) + '  |\n' \
-                        + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
-                        + '|  ' + use_cluster_set + ' ' * (num_of_spaces - len(use_cluster_set)) + '  |\n' \
-                        + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
-                        + '|  ' + file_type + ' ' * (num_of_spaces - len(file_type)) + '  |\n' \
-                        + '|  ' + file_type_description1 + ' ' * (num_of_spaces - len(file_type_description1)) + '  |\n' \
-                        + '|  ' + output + ' ' * (num_of_spaces - len(output)) + '  |\n' \
-                        + '|  ' + output_description1 + ' ' * (num_of_spaces - len(output_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'selectBranch':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.selectBranch\033[0m'
-                    api = "sctreeshap.sctreeshap.selectBranch(data, branch_name=None, cluster_set=[], use_cluster_set=False)"
-                    description =                   'Description: select cells whose cluster is under the given branch or in given cluster set.'
-                    data =                          'Parameters:  data: AnnData or DataFrame'
-                    branch_name =                             '             branch_name: str'
-                    branch_name_description1 =                '             |  If not None, filter cells not under the branch.'
-                    cluster_set =                             '             cluster_set: list or tuple'
-                    cluster_set_description1 =                '             |  A list or tuple of strings representing the target clusters.'
-                    use_cluster_set =                         '             use_cluster_set: bool'
-                    use_cluster_set_description1 =            '             |  If True, filter cells not with clusters in cluster_set.'
-                    return_description =                      'Return:      AnnData or DataFrame.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
-                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
-                        + '|  ' + cluster_set + ' ' * (num_of_spaces - len(cluster_set)) + '  |\n' \
-                        + '|  ' + cluster_set_description1 + ' ' * (num_of_spaces - len(cluster_set_description1)) + '  |\n' \
-                        + '|  ' + use_cluster_set + ' ' * (num_of_spaces - len(use_cluster_set)) + '  |\n' \
-                        + '|  ' + use_cluster_set_description1 + ' ' * (num_of_spaces - len(use_cluster_set_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'mergeBranch':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.mergeBranch\033[0m'
-                    api = 'sctreeshap.sctreeshap.mergeBranch(data=None, branch_name=None)'
-                    description =                    'Description: merge all clusters under a given branch.'
-                    data =                          'Parameters:  data: AnnData or DataFrame'
-                    branch_name =                   '             branch_name: str'
-                    branch_name_description1 =      '             |  The clusters under the branch will merge, relabelled as the branch_name.'
-                    return_description =            'Return:      DataFrame or AnnData.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + branch_name + ' ' * (num_of_spaces - len(branch_name)) + '  |\n' \
-                        + '|  ' + branch_name_description1 + ' ' * (num_of_spaces - len(branch_name_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'AnnData_to_DataFrame':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.AnnData_to_DataFrame\033[0m'
-                    api = 'sctreeshap.sctreeshap.AnnData_to_DataFrame(adata)'
-                    description =                    'Description: convert AnnData to DataFrame.'
-                    adata =                          'Parameters:  adata: AnnData'
-                    adata_description1 =             '             |  An AnnData object in anndata package.'
-                    return_description =             'Return:      DataFrame.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + adata + ' ' * (num_of_spaces - len(adata)) + '  |\n' \
-                        + '|  ' + adata_description1 + ' ' * (num_of_spaces - len(adata_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'DataFrame_to_AnnData':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.DataFrame_to_AnnData\033[0m'
-                    api = 'sctreeshap.sctreeshap.DataFrame_to_AnnData(data)'
-                    description =                    'Description: convert DataFrame to AnnData.'
-                    data =                          'Parameters:  data: DataFrame'
-                    data_description1 =             '             |  A DataFrame object in pandas package.'
-                    return_description =             'Return:      AnnData.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + data_description1 + ' ' * (num_of_spaces - len(data_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'geneFiltering':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.geneFiltering\033[0m'
-                    api = 'sctreeshap.sctreeshap.geneFiltering(data=None, min_partial=None, gene_set=None, gene_prefix=None)'
-                    description =                    'Description: filter genes customly.'
-                    data =                          'Parameters:  data: DataFrame or AnnData'
-                    min_partial =                   '             min_partial: float'
-                    min_partial_description1 =      '             |  If not None, filter genes expressed in less than min_partial * 100% cells.'
-                    gene_set =                      '             gene_set: list or tuple'
-                    gene_set_description1 =         '             |  A list or a tuple of genes to be filtered.'
-                    gene_prefix =                   '             gene_prefix: list or tuple'
-                    gene_prefix_description1 =      '             |  Genes with prefix in gene_prefix will be filtered.'
-                    return_description =             'Return:      AnnData or DataFrame.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + min_partial + ' ' * (num_of_spaces - len(min_partial)) + '  |\n' \
-                        + '|  ' + min_partial_description1 + ' ' * (num_of_spaces - len(min_partial_description1)) + '  |\n' \
-                        + '|  ' + gene_set + ' ' * (num_of_spaces - len(gene_set)) + '  |\n' \
-                        + '|  ' + gene_set_description1 + ' ' * (num_of_spaces - len(gene_set_description1)) + '  |\n' \
-                        + '|  ' + gene_prefix + ' ' * (num_of_spaces - len(gene_prefix)) + '  |\n' \
-                        + '|  ' + gene_prefix_description1 + ' ' * (num_of_spaces - len(gene_prefix_description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'explainBinary':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.explainBinary\033[0m'
-                    api = 'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, nthread=32, '
-                    api1 = 'shap_params=None)'
-                    description =                    'Description: do binary classification and generate shap figures.'
-                    data =                          'Parameters:  data: DataFrame or AnnData'
-                    cluster_name =                  '             cluster_name: str'
-                    cluster_name_description1 =     '             |  The target cluster for classification.'
-                    use_SMOTE =                     '             use_SMOTE: bool'
-                    use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
-                    nthread =                       '             nthread: int'
-                    nthread_description1 =          '             |  The number of running threads.'
-                    shap_params =                   '             shap_params: dictionary'
-                    shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "force_plot", "heat_map", "decision_plot"]'
-                    shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
-                    shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
-                    shap_params_description4 =      '             |  output this kind of shap figures.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + api1 + ' ' * (num_of_spaces - len(api1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + cluster_name + ' ' * (num_of_spaces - len(cluster_name)) + '  |\n' \
-                        + '|  ' + cluster_name_description1 + ' ' * (num_of_spaces - len(cluster_name_description1)) + '  |\n' \
-                        + '|  ' + use_SMOTE + ' ' * (num_of_spaces - len(use_SMOTE)) + '  |\n' \
-                        + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
-                        + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
-                        + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
-                        + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
-                        + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
-                        + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
-                        + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
-                        + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'explainMulti':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.explainMulti\033[0m'
-                    api = 'sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, nthread=32, shap_params=None)'
-                    description =                    'Description: do multi-classification and generate shap figures.'
-                    data =                          'Parameters:  data: DataFrame or AnnData'
-                    use_SMOTE =                     '             use_SMOTE: bool'
-                    use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
-                    nthread =                       '             nthread: int'
-                    nthread_description1 =          '             |  The number of running threads.'
-                    shap_params =                   '             shap_params: dictionary'
-                    shap_params_description1 =      '             |  Keys: ["max_display", "bar_plot", "beeswarm", "decision_plot"]'
-                    shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
-                    shap_params_description3 =      '             |  in shap figures, while each other key is reflected to a bool which indicates whether to '
-                    shap_params_description4 =      '             |  output this kind of shap figures.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + data + ' ' * (num_of_spaces - len(data)) + '  |\n' \
-                        + '|  ' + use_SMOTE + ' ' * (num_of_spaces - len(use_SMOTE)) + '  |\n' \
-                        + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
-                        + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
-                        + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
-                        + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
-                        + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
-                        + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
-                        + '|  ' + shap_params_description3 + ' ' * (num_of_spaces - len(shap_params_description3)) + '  |\n' \
-                        + '|  ' + shap_params_description4 + ' ' * (num_of_spaces - len(shap_params_description4)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'getShapValues':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.getShapValues\033[0m'
-                    api = 'sctreeshap.sctreeshap.getShapValues()'
-                    description =                    "Description: get shap values of the last job (available after 'a.explainBinary()' or 'a.explainMulti()')."
-                    return_description =             'Return:      ndarray.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                elif cmd == 'getTopGenes':
-                    function = '\033[1;37;40msctreeshap.sctreeshap.getTopGenes\033[0m'
-                    api = 'sctreeshap.sctreeshap.getTopGenes(max_display=None, shap_values=None, feature_names=None)'
-                    description =                    'Description: get top genes of max absolute mean shap values. (You can just simply call it without any '
-                    description1 =                   '             parameters after explainBinary() or explainMulti()).'
-                    max_display =                    'Parameters:  max_display: int'
-                    max_display_description1 =       '             |  The the number of top genes you want to derive.'
-                    shap_values =                    '             shap_values: list or ndarray'
-                    shap_values_description1 =       '             |  This can be derived from getShapValues(), defaultly from last explainBinary()/explainMulti().'
-                    feature_names =                  '             feature_names: ndarray, list or tuple'
-                    feature_names_description1 =     '             |  The gene set (columns of cell-gene matrix), must correspond to order of shap_values, defaultly'
-                    feature_names_description2 =     '             |  from last explainBinary()/explainMulti().'
-                    return_description =             'Return:      ndarray, an ordered set of top genes of maximum absolute mean shap values.'
-                    print( ' __' + '_' * num_of_spaces + '__ \n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
-                        + '|  ' + description1 + ' ' * (num_of_spaces - len(description1)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + max_display + ' ' * (num_of_spaces - len(max_display)) + '  |\n' \
-                        + '|  ' + max_display_description1 + ' ' * (num_of_spaces - len(max_display_description1)) + '  |\n' \
-                        + '|  ' + shap_values + ' ' * (num_of_spaces - len(shap_values)) + '  |\n' \
-                        + '|  ' + shap_values_description1 + ' ' * (num_of_spaces - len(shap_values_description1)) + '  |\n' \
-                        + '|  ' + feature_names + ' ' * (num_of_spaces - len(feature_names)) + '  |\n' \
-                        + '|  ' + feature_names_description1 + ' ' * (num_of_spaces - len(feature_names_description1)) + '  |\n' \
-                        + '|  ' + feature_names_description2 + ' ' * (num_of_spaces - len(feature_names_description2)) + '  |\n' \
-                        + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
-                        + '|  ' + return_description + ' ' * (num_of_spaces - len(return_description)) + '  |\n' \
-                        + '|__' + '_' * num_of_spaces + '__|')
-                else:
-                    print("Unrecognized item:", cmd)
+                print(self.help(cmd))
 
 checkUpdates()
