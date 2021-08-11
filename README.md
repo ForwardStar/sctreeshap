@@ -10,12 +10,11 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-## v0.7.2 Update
+## v0.7.3 Update
 
-- Bug fixes.
-- Documentation updated.
+- Minor bug fixes.
 
-In v0.7.x, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using geneFiltering() before setting output as 'probability'.
+In v0.7, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using geneFiltering() before setting output as 'probability'.
 
 A sample code is as follows:
 

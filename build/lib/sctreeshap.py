@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.7.2"
+__version__ = "0.7.3"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import time
@@ -129,6 +129,24 @@ def uninstall():
     main(['uninstall', 'sctreeshap'])
 
 class sctreeshap:
+    def __showProcess(self):
+        try:
+            print(self.__waitingMessage, end="  ")
+            while self.__isFinished is False:
+                print('\b-', end='')
+                time.sleep(0.05)
+                print('\b\\', end='')
+                time.sleep(0.05)
+                print('\b|', end='')
+                time.sleep(0.05)
+                print('\b/', end='')
+                time.sleep(0.05)
+            if self.__isFinished is True:
+                print('\bdone')
+            else:
+                print('\berror!')
+        except:
+            raise
     def __checkLoops(self, root):
         checkResult = True
         self.__visited.append(root)
@@ -440,21 +458,6 @@ class sctreeshap:
     # Load default dataset and build default cluster tree.
     # Return: AnnData, the default dataset.
     def loadDefault(self):
-        def showProcess():
-            print(self.__waitingMessage, end="  ")
-            while not self.__isFinished:
-                print('\b-', end='')
-                time.sleep(0.05)
-                print('\b\\', end='')
-                time.sleep(0.05)
-                print('\b|', end='')
-                time.sleep(0.05)
-                print('\b/', end='')
-                time.sleep(0.05)
-            if self.__isFinished is True:
-                print('\bdone')
-            else:
-                print('\berror!')
         import os
         data_directory = __file__[:-13] + "sctreeshap_data/"
         if not os.path.exists(data_directory) or not os.path.isfile(data_directory + "INPUT_DATA.h5ad"):
@@ -490,29 +493,45 @@ class sctreeshap:
                     print("Downloading file " + files + "...")
                     path = Path(data_directory + "tmp/" + files)
                     url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/datasets/" + files
+                    download(url, path)
                     
             self.__waitingMessage = "Merging the partitioned dataset..."
             self.__isFinished = False
-            thread_merge = threading.Thread(target=showProcess)
+            thread_merge = threading.Thread(target=self.__showProcess)
             thread_merge.start()
-            path = Path(data_directory + "tmp/")
-            outfile = open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), 'wb')
-            files = os.listdir(path)
-            files.sort()
-            for file in files:
-                filepath = os.path.join(path, file)
-                infile = open(filepath, 'rb')
-                data = infile.read()
-                outfile.write(data)
-                infile.close()
-            outfile.close()
-            self.__isFinished = True
-            thread_merge.join()
-            time.sleep(0.2)
+            try:
+                path = Path(data_directory + "tmp/")
+                outfile = open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), 'wb')
+                files = os.listdir(path)
+                files.sort()
+                for file in files:
+                    filepath = os.path.join(path, file)
+                    infile = open(filepath, 'rb')
+                    data = infile.read()
+                    outfile.write(data)
+                    infile.close()
+                outfile.close()
+                self.__isFinished = True
+                thread_merge.join()
+                time.sleep(0.2)
+            except KeyboardInterrupt:
+                raise
+            except:
+                self.__isFinished = "Error"
+                thread_extract.join()
+                print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n] ", end='')
+                redownload = input()
+                while redownload != 'y' and redownload != 'n':
+                    print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n] ", end='')
+                    redownload = input()
+                if redownload == 'y':
+                    self.clearDownload()
+                    return self.loadDefault()
+                raise
 
             self.__waitingMessage = "Extracting the dataset... (5.9 GiB)"
             self.__isFinished = False
-            thread_extract = threading.Thread(target=showProcess)
+            thread_extract = threading.Thread(target=self.__showProcess)
             thread_extract.start()
             try:
                 archive = tarfile.open(os.path.join(data_directory, "INPUT_DATA.h5ad.tar.bz2"), "r:bz2")
@@ -538,7 +557,7 @@ class sctreeshap:
 
         self.__waitingMessage = "Building default cluster tree..."
         self.__isFinished = False
-        thread_build = threading.Thread(target=showProcess)
+        thread_build = threading.Thread(target=self.__showProcess)
         thread_build.start()
         tree_arr = {
             "n1": ('n2', 'n70'),
@@ -623,7 +642,7 @@ class sctreeshap:
 
         self.__waitingMessage = "Reading data in..."
         self.__isFinished = False
-        thread_read = threading.Thread(target=showProcess)
+        thread_read = threading.Thread(target=self.__showProcess)
         thread_read.start()
         try:
             data = ad.read_h5ad(data_directory + "INPUT_DATA.h5ad")
@@ -879,26 +898,10 @@ class sctreeshap:
         from imblearn.over_sampling import SMOTE
         from sklearn.model_selection import train_test_split
 
-        def showProcess():
-            print(self.__waitingMessage, end="  ")
-            while self.__isFinished is False:
-                print('\b-', end='')
-                time.sleep(0.05)
-                print('\b\\', end='')
-                time.sleep(0.05)
-                print('\b|', end='')
-                time.sleep(0.05)
-                print('\b/', end='')
-                time.sleep(0.05)
-            if self.__isFinished is True:
-                print('\bdone')
-            else:
-                print('\berror!')
-
         # Preprocessing data
         self.__waitingMessage = "Preprocessing data.."
         self.__isFinished = False
-        thread_preprocessData = threading.Thread(target=showProcess)
+        thread_preprocessData = threading.Thread(target=self.__showProcess)
         thread_preprocessData.start()
         if data is None:
             data = self.__dataSet
@@ -929,7 +932,7 @@ class sctreeshap:
         # Building the model
         self.__waitingMessage = "Building xgboost models.."
         self.__isFinished = False
-        thread_buildModels = threading.Thread(target=showProcess)
+        thread_buildModels = threading.Thread(target=self.__showProcess)
         thread_buildModels.start()
         self.__XGBClassifer = XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
         self.__XGBClassifer.fit(x_train, y_train)
@@ -945,7 +948,7 @@ class sctreeshap:
         # Building the shap explainer
         self.__waitingMessage = "Building shap explainers.."
         self.__isFinished = False
-        thread_buildShap = threading.Thread(target=showProcess)
+        thread_buildShap = threading.Thread(target=self.__showProcess)
         thread_buildShap.start()
         if shap_params is None:
             shap_params = self.__shapParamsBinary
@@ -1012,22 +1015,6 @@ class sctreeshap:
         from matplotlib import pyplot as plt
         from imblearn.over_sampling import SMOTE
         from sklearn.model_selection import train_test_split
-
-        def showProcess():
-            print(self.__waitingMessage, end="  ")
-            while not self.__isFinished:
-                print('\b-', end='')
-                time.sleep(0.05)
-                print('\b\\', end='')
-                time.sleep(0.05)
-                print('\b|', end='')
-                time.sleep(0.05)
-                print('\b/', end='')
-                time.sleep(0.05)
-            if self.__isFinished is True:
-                print('\bdone')
-            else:
-                print('\berror!')
         
         if shap_params is None:
             shap_params = self.__shapParamsMulti
@@ -1038,7 +1025,7 @@ class sctreeshap:
             # Preprocessing data
             self.__waitingMessage = "Preprocessing data.."
             self.__isFinished = False
-            thread_preprocessData = threading.Thread(target=showProcess)
+            thread_preprocessData = threading.Thread(target=self.__showProcess)
             thread_preprocessData.start()
             if data is None:
                 data = self.__dataSet
@@ -1077,7 +1064,7 @@ class sctreeshap:
             # Building the model
             self.__waitingMessage = "Building xgboost models.."
             self.__isFinished = False
-            thread_buildModels = threading.Thread(target=showProcess)
+            thread_buildModels = threading.Thread(target=self.__showProcess)
             thread_buildModels.start()
             self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
             self.__XGBClassifer.fit(x_train, y_train)
@@ -1093,7 +1080,7 @@ class sctreeshap:
             # Building the shap explainer
             self.__waitingMessage = "Building shap explainers.."
             self.__isFinished = False
-            thread_buildShap = threading.Thread(target=showProcess)
+            thread_buildShap = threading.Thread(target=self.__showProcess)
             thread_buildShap.start()
             self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
             self.__shapValues = self.__explainer.shap_values(x_test)
@@ -1155,7 +1142,7 @@ class sctreeshap:
             # Preprocessing data
             self.__waitingMessage = "Preprocessing data.."
             self.__isFinished = False
-            thread_preprocessData = threading.Thread(target=showProcess)
+            thread_preprocessData = threading.Thread(target=self.__showProcess)
             thread_preprocessData.start()
             if data is None:
                 data = self.__dataSet
@@ -1201,7 +1188,7 @@ class sctreeshap:
             # Building the model
             self.__waitingMessage = "Building xgboost models.."
             self.__isFinished = False
-            thread_buildModels = threading.Thread(target=showProcess)
+            thread_buildModels = threading.Thread(target=self.__showProcess)
             thread_buildModels.start()
             self.__XGBClassifer = [XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False).fit(x_train, y_train[i]) for i in range(self.numOfClusters)]
             self.__isFinished = True
@@ -1217,7 +1204,7 @@ class sctreeshap:
             # Building the shap explainer
             self.__waitingMessage = "Building shap explainers.."
             self.__isFinished = False
-            thread_buildShap = threading.Thread(target=showProcess)
+            thread_buildShap = threading.Thread(target=self.__showProcess)
             thread_buildShap.start()
             print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
             self.__explainer = [shap.TreeExplainer(self.__XGBClassifer[i], x_train, model_output='probability') for i in range(self.numOfClusters)]
