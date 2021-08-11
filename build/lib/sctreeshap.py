@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import time
@@ -40,7 +40,7 @@ def checkUpdates():
         raise
     except:
         print("\033[1;33;40mWarning:\033[0m unable to detect latest version info.")
-    print("To disable version check, run sctreeshap.muteNotifications(). To revert, run sctreeshap.enableNotifications().")
+    print('To disable version check, run "sctreeshap.muteNotifications()". To revert, run "sctreeshap.enableNotifications()".')
 
 def download(url, path):
     from tqdm import tqdm
@@ -130,23 +130,21 @@ def uninstall():
 
 class sctreeshap:
     def __showProcess(self):
-        try:
-            print(self.__waitingMessage, end="  ")
-            while self.__isFinished is False:
-                print('\b-', end='')
-                time.sleep(0.05)
-                print('\b\\', end='')
-                time.sleep(0.05)
-                print('\b|', end='')
-                time.sleep(0.05)
-                print('\b/', end='')
-                time.sleep(0.05)
-            if self.__isFinished is True:
-                print('\bdone')
-            else:
-                print('\berror!')
-        except:
-            raise
+        print(self.__waitingMessage, end="  ")
+        while self.__isFinished is False:
+            print('\b-', end='')
+            time.sleep(0.05)
+            print('\b\\', end='')
+            time.sleep(0.05)
+            print('\b|', end='')
+            time.sleep(0.05)
+            print('\b/', end='')
+            time.sleep(0.05)
+        if self.__isFinished is True:
+            print('\bdone')
+        else:
+            print('\berror!')
+
     def __checkLoops(self, root):
         checkResult = True
         self.__visited.append(root)
@@ -515,10 +513,12 @@ class sctreeshap:
                 thread_merge.join()
                 time.sleep(0.2)
             except KeyboardInterrupt:
+                self.__isFinished = "Error"
+                thread_merge.join()
                 raise
             except:
                 self.__isFinished = "Error"
-                thread_extract.join()
+                thread_merge.join()
                 print("\033[1;31;40mError:\033[0m An error occurred during extracting the dataset. The compressed file may be broken. Do you want to redownload it? [y/n] ", end='')
                 redownload = input()
                 while redownload != 'y' and redownload != 'n':
@@ -538,6 +538,8 @@ class sctreeshap:
                 archive.extractall(data_directory)
                 archive.close()
             except KeyboardInterrupt:
+                self.__isFinished = "Error"
+                thread_extract.join()
                 raise
             except:
                 self.__isFinished = "Error"
@@ -647,6 +649,8 @@ class sctreeshap:
         try:
             data = ad.read_h5ad(data_directory + "INPUT_DATA.h5ad")
         except KeyboardInterrupt:
+            self.__isFinished = "Error"
+            thread_read.join()
             raise
         except:
             self.__isFinished = "Error"
@@ -903,41 +907,51 @@ class sctreeshap:
         self.__isFinished = False
         thread_preprocessData = threading.Thread(target=self.__showProcess)
         thread_preprocessData.start()
-        if data is None:
-            data = self.__dataSet
-        if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-            self.__isFinished = "Error"
+        try:
+            if data is None:
+                data = self.__dataSet
+            if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+                self.__isFinished = "Error"
+                thread_preprocessData.join()
+                time.sleep(0.2)
+                raise TypeError("in method 'sctreeshap.sctreeshap.explainBinary()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
+            if isinstance(data, ad._core.anndata.AnnData):
+                data = self.AnnData_to_DataFrame(data)
+            cluster = data.columns.values[-1]
+            y = np.array(data[cluster])
+            x = data.drop(columns=[cluster])
+            if use_SMOTE:
+                oversample = SMOTE()
+                x, y = oversample.fit_resample(x, y)
+            if cluster_name is None:
+                cluster_name = self.__cluster
+            y[y != cluster_name] = False
+            y[y == cluster_name] = True
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
+            x_train = x_train.reset_index(drop=True)
+            x_test = x_test.reset_index(drop=True)
+            self.__isFinished = True
             thread_preprocessData.join()
             time.sleep(0.2)
-            raise TypeError("in method 'sctreeshap.sctreeshap.explainBinary()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
-        if isinstance(data, ad._core.anndata.AnnData):
-            data = self.AnnData_to_DataFrame(data)
-        cluster = data.columns.values[-1]
-        y = np.array(data[cluster])
-        x = data.drop(columns=[cluster])
-        if use_SMOTE:
-            oversample = SMOTE()
-            x, y = oversample.fit_resample(x, y)
-        if cluster_name is None:
-            cluster_name = self.__cluster
-        y[y != cluster_name] = False
-        y[y == cluster_name] = True
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
-        x_train = x_train.reset_index(drop=True)
-        x_test = x_test.reset_index(drop=True)
-        self.__isFinished = True
-        thread_preprocessData.join()
-        time.sleep(0.2)
+        except:
+            self.__isFinished = "Error"
+            thread_preprocessData.join()
+            raise
 
         # Building the model
         self.__waitingMessage = "Building xgboost models.."
         self.__isFinished = False
         thread_buildModels = threading.Thread(target=self.__showProcess)
         thread_buildModels.start()
-        self.__XGBClassifer = XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
-        self.__XGBClassifer.fit(x_train, y_train)
-        self.__isFinished = True
-        thread_buildModels.join()
+        try:
+            self.__XGBClassifer = XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
+            self.__XGBClassifer.fit(x_train, y_train)
+            self.__isFinished = True
+            thread_buildModels.join()
+        except:
+            self.__isFinished = "Error"
+            thread_buildModels.join()
+            raise
 
         # Cross validation
         y_pred = self.__XGBClassifer.predict(x_test)
@@ -950,21 +964,28 @@ class sctreeshap:
         self.__isFinished = False
         thread_buildShap = threading.Thread(target=self.__showProcess)
         thread_buildShap.start()
-        if shap_params is None:
-            shap_params = self.__shapParamsBinary
-        if "model_output" not in shap_params or (shap_params["model_output"] != 'raw' and shap_params["model_output"] != 'probability'):
-            shap_params["model_output"] = 'raw'
-        if shap_params["model_output"] == 'raw':
-            self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
-        elif shap_params["model_output"] == 'probability':
-            print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
-            self.__explainer = shap.TreeExplainer(self.__XGBClassifer, x_train, model_output='probability')
-        else:
-            raise ValueError(shap_params["model_output"])
-        self.__shapValues = self.__explainer.shap_values(x_test)
-        self.__isFinished = True
-        thread_buildShap.join()
-        time.sleep(0.2)
+        try:
+            if shap_params is None:
+                shap_params = self.__shapParamsBinary
+            if "model_output" not in shap_params or (shap_params["model_output"] != 'raw' and shap_params["model_output"] != 'probability'):
+                shap_params["model_output"] = 'raw'
+            if shap_params["model_output"] == 'raw':
+                self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
+            elif shap_params["model_output"] == 'probability':
+                print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
+                self.__explainer = shap.TreeExplainer(self.__XGBClassifer, x_train, model_output='probability')
+            else:
+                self.__isFinished = "Error"
+                thread_buildShap.join()
+                raise ValueError(shap_params["model_output"])
+            self.__shapValues = self.__explainer.shap_values(x_test)
+            self.__isFinished = True
+            thread_buildShap.join()
+            time.sleep(0.2)
+        except:
+            self.__isFinished = "Error"
+            thread_buildShap.join()
+            raise
 
         # Generating shap figures
         print("Generating shap figures..")
@@ -1027,49 +1048,59 @@ class sctreeshap:
             self.__isFinished = False
             thread_preprocessData = threading.Thread(target=self.__showProcess)
             thread_preprocessData.start()
-            if data is None:
-                data = self.__dataSet
-            if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-                self.__isFinished = "Error"
+            try:
+                if data is None:
+                    data = self.__dataSet
+                if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+                    self.__isFinished = "Error"
+                    thread_preprocessData.join()
+                    time.sleep(0.2)
+                    raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
+                if isinstance(data, ad._core.anndata.AnnData):
+                    data = self.AnnData_to_DataFrame(data)
+                cluster = data.columns.values[-1]
+                y = np.array(data[cluster])
+                x = data.drop(columns=[cluster])
+                if use_SMOTE:
+                    oversample = SMOTE()
+                    x, y = oversample.fit_resample(x, y)
+                self.numOfClusters = 0
+                self.clusterDict = {}
+                [rows] = y.shape
+                for i in range(rows):
+                    if y[i] in self.clusterDict:
+                        y[i] = self.clusterDict[y[i]]
+                    else:
+                        self.clusterDict[y[i]] = self.numOfClusters
+                        y[i] = self.numOfClusters
+                        self.numOfClusters += 1
+                x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
+                x_train = x_train.reset_index(drop=True)
+                x_test = x_test.reset_index(drop=True)
+                self.__isFinished = True
                 thread_preprocessData.join()
                 time.sleep(0.2)
-                raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
-            if isinstance(data, ad._core.anndata.AnnData):
-                data = self.AnnData_to_DataFrame(data)
-            cluster = data.columns.values[-1]
-            y = np.array(data[cluster])
-            x = data.drop(columns=[cluster])
-            if use_SMOTE:
-                oversample = SMOTE()
-                x, y = oversample.fit_resample(x, y)
-            self.numOfClusters = 0
-            self.clusterDict = {}
-            [rows] = y.shape
-            for i in range(rows):
-                if y[i] in self.clusterDict:
-                    y[i] = self.clusterDict[y[i]]
-                else:
-                    self.clusterDict[y[i]] = self.numOfClusters
-                    y[i] = self.numOfClusters
-                    self.numOfClusters += 1
-            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
-            x_train = x_train.reset_index(drop=True)
-            x_test = x_test.reset_index(drop=True)
-            self.__isFinished = True
-            thread_preprocessData.join()
-            time.sleep(0.2)
-            for key in self.clusterDict.keys():
-                print("     " + key + ": Class", self.clusterDict[key])
+                for key in self.clusterDict.keys():
+                    print("     " + key + ": Class", self.clusterDict[key])
+            except:
+                self.__isFinished = "Error"
+                thread_preprocessData.join()
+                raise
 
             # Building the model
             self.__waitingMessage = "Building xgboost models.."
             self.__isFinished = False
             thread_buildModels = threading.Thread(target=self.__showProcess)
             thread_buildModels.start()
-            self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
-            self.__XGBClassifer.fit(x_train, y_train)
-            self.__isFinished = True
-            thread_buildModels.join()
+            try:
+                self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
+                self.__XGBClassifer.fit(x_train, y_train)
+                self.__isFinished = True
+                thread_buildModels.join()
+            except:
+                self.__isFinished = "Error"
+                thread_buildModels.join()
+                raise
 
             # Cross validation
             y_pred = self.__XGBClassifer.predict(x_test)
@@ -1082,11 +1113,16 @@ class sctreeshap:
             self.__isFinished = False
             thread_buildShap = threading.Thread(target=self.__showProcess)
             thread_buildShap.start()
-            self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
-            self.__shapValues = self.__explainer.shap_values(x_test)
-            self.__isFinished = True
-            thread_buildShap.join()
-            time.sleep(0.2)
+            try:
+                self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
+                self.__shapValues = self.__explainer.shap_values(x_test)
+                self.__isFinished = True
+                thread_buildShap.join()
+                time.sleep(0.2)
+            except:
+                self.__isFinished = "Error"
+                thread_buildShap.join()
+                raise
 
             # Generating shap figures
             print("Generating shap figures..")
@@ -1144,55 +1180,65 @@ class sctreeshap:
             self.__isFinished = False
             thread_preprocessData = threading.Thread(target=self.__showProcess)
             thread_preprocessData.start()
-            if data is None:
-                data = self.__dataSet
-            if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
-                self.__isFinished = "Error"
+            try:
+                if data is None:
+                    data = self.__dataSet
+                if not isinstance(data, pd.core.frame.DataFrame) and not isinstance(data, ad._core.anndata.AnnData):
+                    self.__isFinished = "Error"
+                    thread_preprocessData.join()
+                    time.sleep(0.2)
+                    raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
+                if isinstance(data, ad._core.anndata.AnnData):
+                    data = self.AnnData_to_DataFrame(data)
+                cluster = data.columns.values[-1]
+                y = np.array(data[cluster])
+                x = data.drop(columns=[cluster])
+                if use_SMOTE:
+                    oversample = SMOTE()
+                    x, y = oversample.fit_resample(x, y)
+                self.numOfClusters = 0
+                self.clusterDict = {}
+                [rows] = y.shape
+                for i in range(rows):
+                    if y[i] in self.clusterDict:
+                        y[i] = self.clusterDict[y[i]]
+                    else:
+                        self.clusterDict[y[i]] = self.numOfClusters
+                        y[i] = self.numOfClusters
+                        self.numOfClusters += 1
+                x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
+                x_train = x_train.reset_index(drop=True)
+                x_test = x_test.reset_index(drop=True)
+                y_train = [np.array(y_train) for i in range(self.numOfClusters)]
+                y_train[0][y_train[0] == 0] = -1
+                y_train[0][y_train[0] > 0] = False
+                y_train[0][y_train[0] < 0] = True
+                for i in range(1, self.numOfClusters):
+                    y_train[i][y_train[i] != i] = False
+                    y_train[i][y_train[i] == i] = True
+                self.__isFinished = True
                 thread_preprocessData.join()
                 time.sleep(0.2)
-                raise TypeError("in method 'sctreeshap.explainMulti()' (in file '" + __file__ + "'), parameter 'data' receives " + str(type(data)) + ", expected <class 'pandas.core.frame.DataFrame'> or <class 'anndata._core.anndata.AnnData'>.")
-            if isinstance(data, ad._core.anndata.AnnData):
-                data = self.AnnData_to_DataFrame(data)
-            cluster = data.columns.values[-1]
-            y = np.array(data[cluster])
-            x = data.drop(columns=[cluster])
-            if use_SMOTE:
-                oversample = SMOTE()
-                x, y = oversample.fit_resample(x, y)
-            self.numOfClusters = 0
-            self.clusterDict = {}
-            [rows] = y.shape
-            for i in range(rows):
-                if y[i] in self.clusterDict:
-                    y[i] = self.clusterDict[y[i]]
-                else:
-                    self.clusterDict[y[i]] = self.numOfClusters
-                    y[i] = self.numOfClusters
-                    self.numOfClusters += 1
-            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 1234)
-            x_train = x_train.reset_index(drop=True)
-            x_test = x_test.reset_index(drop=True)
-            y_train = [np.array(y_train) for i in range(self.numOfClusters)]
-            y_train[0][y_train[0] == 0] = -1
-            y_train[0][y_train[0] > 0] = False
-            y_train[0][y_train[0] < 0] = True
-            for i in range(1, self.numOfClusters):
-                y_train[i][y_train[i] != i] = False
-                y_train[i][y_train[i] == i] = True
-            self.__isFinished = True
-            thread_preprocessData.join()
-            time.sleep(0.2)
-            for key in self.clusterDict.keys():
-                print("     " + key + ": Class", self.clusterDict[key])
+                for key in self.clusterDict.keys():
+                    print("     " + key + ": Class", self.clusterDict[key])
+            except:
+                self.__isFinished = "Error"
+                thread_preprocessData.join()
+                raise
 
             # Building the model
             self.__waitingMessage = "Building xgboost models.."
             self.__isFinished = False
             thread_buildModels = threading.Thread(target=self.__showProcess)
             thread_buildModels.start()
-            self.__XGBClassifer = [XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False).fit(x_train, y_train[i]) for i in range(self.numOfClusters)]
-            self.__isFinished = True
-            thread_buildModels.join()
+            try:
+                self.__XGBClassifer = [XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False).fit(x_train, y_train[i]) for i in range(self.numOfClusters)]
+                self.__isFinished = True
+                thread_buildModels.join()
+            except:
+                self.__isFinished = "Error"
+                thread_buildModels.join()
+                raise
 
             # Cross validation
             y_pred = [self.__XGBClassifer[i].predict_proba(x_test)[:,1] for i in range(self.numOfClusters)]
@@ -1206,12 +1252,17 @@ class sctreeshap:
             self.__isFinished = False
             thread_buildShap = threading.Thread(target=self.__showProcess)
             thread_buildShap.start()
-            print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
-            self.__explainer = [shap.TreeExplainer(self.__XGBClassifer[i], x_train, model_output='probability') for i in range(self.numOfClusters)]
-            self.__shapValues = [self.__explainer[i].shap_values(x_test) for i in range(self.numOfClusters)]
-            self.__isFinished = True
-            thread_buildShap.join()
-            time.sleep(0.2)
+            try:
+                print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
+                self.__explainer = [shap.TreeExplainer(self.__XGBClassifer[i], x_train, model_output='probability') for i in range(self.numOfClusters)]
+                self.__shapValues = [self.__explainer[i].shap_values(x_test) for i in range(self.numOfClusters)]
+                self.__isFinished = True
+                thread_buildShap.join()
+                time.sleep(0.2)
+            except:
+                self.__isFinished = "Error"
+                thread_buildShap.join()
+                raise
 
             # Generating shap figures
             print("Generating shap figures..")
