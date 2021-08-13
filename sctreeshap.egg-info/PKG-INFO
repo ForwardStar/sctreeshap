@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sctreeshap
-Version: 0.7.4
+Version: 0.7.5
 Summary: sctreeshap: a cluster tree data structure, and for shap analysis
 Home-page: https://github.com/ForwardStar/sctreeshap
 Author: Haoxuan Xie
@@ -18,11 +18,11 @@ Description: # sctreeshap
         
         https://github.com/ForwardStar/sctreeshap
         
-        ## v0.7.4 Update
+        # v0.7.5 Update
         
-        - Minor bug fixes.
+        - Custom model supported.
         
-        In v0.7, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using geneFiltering() before setting output as 'probability'.
+        In v0.7.0--v0.7.4, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using 'geneFiltering()' before setting output as 'probability'.
         
         A sample code is as follows:
         
@@ -53,6 +53,10 @@ Description: # sctreeshap
             "decision_plot" : True
         })
         ```
+        
+        While in v0.7.5, we supported custom models in 'explainBinary()' and 'explainMulti()'. Currently, there is a new parameter 'model' in the two function. You can set model='XGBClassifier', model='RandomForestClassifier' or model='DecisionTreeClassifier'. However, in the most cases the default XGBClassifier has the best accuracy. You can also set the model as one you defined, like some neuron networks, which may even outperform xgboost models. We do not ensure that shap explainer supports your custom model.
+        
+        # Documentations
         
         ## Installing sctreeshap
         

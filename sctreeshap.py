@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.7.4"
+__version__ = "0.7.5"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import time
@@ -224,7 +224,7 @@ class sctreeshap:
         self.__clusterSet = []
         self.__waitingMessage = None
         self.__isFinished = False
-        self.__XGBClassifer = None
+        self.__model = None
         self.__explainer = None
         self.__shapValues = None
         self.__maxDisplay = None
@@ -360,7 +360,7 @@ class sctreeshap:
     # Get XGBClassifier of the last job (available after 'a.explainBinary()' or 'a.explainMulti()').
     # Return: <class 'xgboost.sklearn.XGBClassifier'> object
     def getClassifier(self):
-        return self.__XGBClassifer
+        return self.__model
 
     # Get shap explainer of the last job (available after 'a.explainBinary()' or 'a.explainMulti()').
     # Return: <class 'shap.explainers._tree.Tree'> object
@@ -895,9 +895,8 @@ class sctreeshap:
     # use_SMOTE: bool, indicates whether to use smote to oversample the data;
     # nthread: int, the number of running threads;
     # shap_params: dictionary, the shap plot parameters, indicating which kinds of figure to plot.
-    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, nthread=32, shap_params=None):        
+    def explainBinary(self, data=None, cluster_name=None, use_SMOTE=False, nthread=32, model='XGBClassifier', shap_params=None):        
         import shap
-        from xgboost import XGBClassifier
         from matplotlib import pyplot as plt
         from imblearn.over_sampling import SMOTE
         from sklearn.model_selection import train_test_split
@@ -939,13 +938,24 @@ class sctreeshap:
             raise
 
         # Building the model
-        self.__waitingMessage = "Building xgboost models.."
+        self.__waitingMessage = "Building and training models.."
         self.__isFinished = False
         thread_buildModels = threading.Thread(target=self.__showProcess)
         thread_buildModels.start()
         try:
-            self.__XGBClassifer = XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
-            self.__XGBClassifer.fit(x_train, y_train)
+            if model == 'XGBClassifier':
+                from xgboost import XGBClassifier
+                self.__model = XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
+            elif model == 'RandomForestClassifier':
+                from sklearn.ensemble import RandomForestClassifier
+                self.__model = RandomForestClassifier(n_jobs=nthread, random_state=42)
+            elif model == 'DecisionTreeClassifier':
+                print("\n\033[1;33;40mWarning:\033[0m DecisionTreeClassifier does not support multi-threading.")
+                from sklearn.tree import DecisionTreeClassifier
+                self.__model = DecisionTreeClassifier(random_state=42)
+            else:
+                self.__model = model
+            self.__model.fit(x_train, y_train)
             self.__isFinished = True
             thread_buildModels.join()
         except:
@@ -954,7 +964,7 @@ class sctreeshap:
             raise
 
         # Cross validation
-        y_pred = self.__XGBClassifer.predict(x_test)
+        y_pred = self.__model.predict(x_test)
         accuracy = np.sum(y_pred == y_test) / len(y_pred) * 100
         print("Accuracy: %.4g%%" % accuracy)
         time.sleep(0.2)
@@ -970,10 +980,10 @@ class sctreeshap:
             if "model_output" not in shap_params or (shap_params["model_output"] != 'raw' and shap_params["model_output"] != 'probability'):
                 shap_params["model_output"] = 'raw'
             if shap_params["model_output"] == 'raw':
-                self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
+                self.__explainer = shap.TreeExplainer(self.__model)
             elif shap_params["model_output"] == 'probability':
                 print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
-                self.__explainer = shap.TreeExplainer(self.__XGBClassifer, x_train, model_output='probability')
+                self.__explainer = shap.TreeExplainer(self.__model, x_train, model_output='probability')
             else:
                 self.__isFinished = "Error"
                 thread_buildShap.join()
@@ -1030,7 +1040,7 @@ class sctreeshap:
     # use_SMOTE: bool, indicates whether to use smote to oversample the data;
     # nthread: int, the number of running threads;
     # shap_params: dictionary, the shap plot parameters, indicating which kinds of figure to plot.
-    def explainMulti(self, data=None, use_SMOTE=False, nthread=32, shap_params=None):
+    def explainMulti(self, data=None, use_SMOTE=False, nthread=32, model='XGBClassifier', shap_params=None):
         import shap
         from xgboost import XGBClassifier
         from matplotlib import pyplot as plt
@@ -1088,13 +1098,29 @@ class sctreeshap:
                 raise
 
             # Building the model
-            self.__waitingMessage = "Building xgboost models.."
+            self.__waitingMessage = "Building and training models.."
             self.__isFinished = False
             thread_buildModels = threading.Thread(target=self.__showProcess)
             thread_buildModels.start()
             try:
-                self.__XGBClassifer = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)
-                self.__XGBClassifer.fit(x_train, y_train)
+                if model == 'XGBClassifier':
+                    self.__model = XGBClassifier(objective="multi:softmax", num_class=self.numOfClusters, nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False)    
+                elif model == 'RandomForestClassifier':
+                    from sklearn.ensemble import RandomForestClassifier
+                    y_train = y_train.astype(str)
+                    y_test = y_test.astype(str)
+                    self.__model = RandomForestClassifier(n_jobs=nthread, random_state=42)
+                elif model == 'DecisionTreeClassifier':
+                    print("\n\033[1;33;40mWarning:\033[0m DecisionTreeClassifier does not support multi-threading.")
+                    from sklearn.tree import DecisionTreeClassifier
+                    y_train = y_train.astype(str)
+                    y_test = y_test.astype(str)
+                    self.__model = DecisionTreeClassifier(random_state=42)
+                else:
+                    y_train = y_train.astype(str)
+                    y_test = y_test.astype(str)
+                    self.__model = model
+                self.__model.fit(x_train, y_train)
                 self.__isFinished = True
                 thread_buildModels.join()
             except:
@@ -1103,7 +1129,7 @@ class sctreeshap:
                 raise
 
             # Cross validation
-            y_pred = self.__XGBClassifer.predict(x_test)
+            y_pred = self.__model.predict(x_test)
             accuracy = np.sum(y_pred == y_test) / len(y_pred) * 100
             print("Accuracy: %.4g%%" % accuracy)
             time.sleep(0.2)
@@ -1114,7 +1140,7 @@ class sctreeshap:
             thread_buildShap = threading.Thread(target=self.__showProcess)
             thread_buildShap.start()
             try:
-                self.__explainer = shap.TreeExplainer(self.__XGBClassifer)
+                self.__explainer = shap.TreeExplainer(self.__model)
                 self.__shapValues = self.__explainer.shap_values(x_test)
                 self.__isFinished = True
                 thread_buildShap.join()
@@ -1155,7 +1181,7 @@ class sctreeshap:
                 print("     Drawing decision plot..")
                 print("     \033[1;33;40mWarning:\033[0m I am not sure whether there is a segementation fault (core dumped). If so, please contact the developer.")
                 print("     \033[1;33;40mWarning:\033[0m There is a problem on text size of shap figures. See issue #995 at https://github.com/slundberg/shap/issues/995")
-                y_pred = pd.DataFrame(self.__XGBClassifer.predict_proba(x_test))
+                y_pred = pd.DataFrame(self.__model.predict_proba(x_test))
                 figure = plt.figure(3)
                 rows = self.numOfClusters // 2 + self.numOfClusters % 2
                 cols = 2
@@ -1227,12 +1253,12 @@ class sctreeshap:
                 raise
 
             # Building the model
-            self.__waitingMessage = "Building xgboost models.."
+            self.__waitingMessage = "Building and training models.."
             self.__isFinished = False
             thread_buildModels = threading.Thread(target=self.__showProcess)
             thread_buildModels.start()
             try:
-                self.__XGBClassifer = [XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False).fit(x_train, y_train[i]) for i in range(self.numOfClusters)]
+                self.__model = [XGBClassifier(objective="binary:logistic", nthread=nthread, eval_metric="mlogloss", random_state=42, use_label_encoder=False).fit(x_train, y_train[i]) for i in range(self.numOfClusters)]
                 self.__isFinished = True
                 thread_buildModels.join()
             except:
@@ -1241,7 +1267,7 @@ class sctreeshap:
                 raise
 
             # Cross validation
-            y_pred = [self.__XGBClassifer[i].predict_proba(x_test)[:,1] for i in range(self.numOfClusters)]
+            y_pred = [self.__model[i].predict_proba(x_test)[:,1] for i in range(self.numOfClusters)]
             y_pred_multi = np.argmax(y_pred, axis=0)
             accuracy = np.sum(y_pred_multi == y_test) / y_pred_multi.shape[0] * 100
             print("Accuracy: %.4g%%" % accuracy)
@@ -1254,7 +1280,9 @@ class sctreeshap:
             thread_buildShap.start()
             try:
                 print("\n\033[1;33;40mWarning:\033[0m There may be a segmentation fault if the number of features is too large.")
-                self.__explainer = [shap.TreeExplainer(self.__XGBClassifer[i], x_train, model_output='probability') for i in range(self.numOfClusters)]
+                if model != 'XGBClassifier':
+                    print("\n\033[1;33;40mWarning:\033[0m For multi-classification, model_output='probability' only supports for model='XGBClassifier'.")
+                self.__explainer = [shap.TreeExplainer(self.__model[i], x_train, model_output='probability') for i in range(self.numOfClusters)]
                 self.__shapValues = [self.__explainer[i].shap_values(x_test) for i in range(self.numOfClusters)]
                 self.__isFinished = True
                 thread_buildShap.join()
@@ -1799,9 +1827,9 @@ class sctreeshap:
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'explainBinary':
             function = '\033[1;37;40msctreeshap.sctreeshap.explainBinary\033[0m'
-            api = 'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, nthread=32, '
-            api1 = 'shap_params=None)'
-            description =                    'Description: do binary classification and generate shap figures.'
+            api =                           'sctreeshap.sctreeshap.explainBinary(data=None, cluster_name=None, use_SMOTE=False, nthread=32, '
+            api1 =                          "model='XGBClassifier', shap_params=None)"
+            description =                   'Description: do binary classification and generate shap figures.'
             data =                          'Parameters:  data: DataFrame or AnnData'
             cluster_name =                  '             cluster_name: str'
             cluster_name_description1 =     '             |  The target cluster for classification.'
@@ -1809,6 +1837,9 @@ class sctreeshap:
             use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
             nthread =                       '             nthread: int'
             nthread_description1 =          '             |  The number of running threads.'
+            model =                         '             model: str, or a sklearn model'
+            model_description1 =            "             |  A model type in ['XGBClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier'], or a"
+            model_description2 =            '             |  sklearn model you have defined.'
             shap_params =                   '             shap_params: dictionary'
             shap_params_description1 =      '             |  Keys: ["max_display", "model_output", "bar_plot", "beeswarm", "force_plot", "heat_map", '
             shap_params_description2 =      '             |  "decision_plot"]'
@@ -1831,6 +1862,9 @@ class sctreeshap:
                 + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
                 + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
                 + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
+                + '|  ' + model + ' ' * (num_of_spaces - len(model)) + '  |\n' \
+                + '|  ' + model_description1 + ' ' * (num_of_spaces - len(model_description1)) + '  |\n' \
+                + '|  ' + model_description2 + ' ' * (num_of_spaces - len(model_description2)) + '  |\n' \
                 + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
                 + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
@@ -1840,13 +1874,17 @@ class sctreeshap:
                 + '|__' + '_' * num_of_spaces + '__|'
         if cmd == 'explainMulti':
             function = '\033[1;37;40msctreeshap.sctreeshap.explainMulti\033[0m'
-            api = 'sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, nthread=32, shap_params=None)'
-            description =                    'Description: do multi-classification and generate shap figures.'
+            api =                           "sctreeshap.sctreeshap.explainMulti(data=None, use_SMOTE=False, nthread=32, model='XGBClassifier', "
+            api1 =                          "shap_params=None)"
+            description =                   'Description: do multi-classification and generate shap figures.'
             data =                          'Parameters:  data: DataFrame or AnnData'
             use_SMOTE =                     '             use_SMOTE: bool'
             use_SMOTE_description1 =        '             |  True if you want to use SMOTE to resample.'
             nthread =                       '             nthread: int'
             nthread_description1 =          '             |  The number of running threads.'
+            model =                         '             model: str, or a sklearn model'
+            model_description1 =            "             |  A model type in ['XGBClassifier', 'RandomForestClassifier', 'DecisionTreeClassifier'], or a"
+            model_description2 =            '             |  sklearn model you have defined.'
             shap_params =                   '             shap_params: dictionary'
             shap_params_description1 =      '             |  Keys: ["max_display", "model_output", "bar_plot", "beeswarm", "decision_plot"]'
             shap_params_description2 =      '             |  Values: "max_display" reflects an int, which determines the maximum number of genes to display'
@@ -1857,6 +1895,7 @@ class sctreeshap:
                 + '|  ' + function + ' ' * (num_of_spaces - len(function) + 14) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + api + ' ' * (num_of_spaces - len(api)) + '  |\n' \
+                + '|  ' + api1 + ' ' * (num_of_spaces - len(api1)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
                 + '|  ' + description + ' ' * (num_of_spaces - len(description)) + '  |\n' \
                 + '|  ' + emptyline + ' ' * (num_of_spaces - len(emptyline)) + '  |\n' \
@@ -1865,6 +1904,9 @@ class sctreeshap:
                 + '|  ' + use_SMOTE_description1 + ' ' * (num_of_spaces - len(use_SMOTE_description1)) + '  |\n' \
                 + '|  ' + nthread + ' ' * (num_of_spaces - len(nthread)) + '  |\n' \
                 + '|  ' + nthread_description1 + ' ' * (num_of_spaces - len(nthread_description1)) + '  |\n' \
+                + '|  ' + model + ' ' * (num_of_spaces - len(model)) + '  |\n' \
+                + '|  ' + model_description1 + ' ' * (num_of_spaces - len(model_description1)) + '  |\n' \
+                + '|  ' + model_description2 + ' ' * (num_of_spaces - len(model_description2)) + '  |\n' \
                 + '|  ' + shap_params + ' ' * (num_of_spaces - len(shap_params)) + '  |\n' \
                 + '|  ' + shap_params_description1 + ' ' * (num_of_spaces - len(shap_params_description1)) + '  |\n' \
                 + '|  ' + shap_params_description2 + ' ' * (num_of_spaces - len(shap_params_description2)) + '  |\n' \
