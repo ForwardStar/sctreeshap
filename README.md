@@ -10,6 +10,10 @@ Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
+# v0.7.6 && v0.7.6.1 Update
+
+Resolve dependency error: replace pathlib with pathlib2 since pathlib has no longer been supported in Python 3.10.
+
 # v0.7.5 Update
 
 - Custom model supported.

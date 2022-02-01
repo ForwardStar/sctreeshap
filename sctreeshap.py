@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.7.5"
+__version__ = "0.7.6.1"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import time
@@ -463,7 +463,7 @@ class sctreeshap:
             if not os.path.exists(data_directory):
                 os.mkdir(data_directory)
             import tarfile
-            from pathlib import Path
+            from pathlib2 import Path
             if not os.path.exists(data_directory + "tmp"):
                 os.mkdir(data_directory + "tmp")
             for i in range(1, 43):

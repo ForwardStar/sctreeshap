@@ -11,5 +11,5 @@ xgboost>=1.4.2
 loompy>=3.0.6
 tqdm>=4.61.2
 requests>=2.26.0
-pathlib>=1.0.1
+pathlib2>=2.0
 pip>=21.1.3
