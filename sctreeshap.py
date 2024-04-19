@@ -1,5 +1,5 @@
 __name__ = 'sctreeshap'
-__version__ = "0.7.6.1"
+__version__ = "0.7.6.2"
 headers = {'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}
 
 import time
@@ -822,7 +822,7 @@ class sctreeshap:
                 if not os.path.exists(data_directory):
                     os.mkdir(data_directory)
                 path = Path(os.path.join(data_directory, files))
-                url = "https://housekeeping.unicamp.br/Housekeeping_GenesHuman.csv"
+                url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/Housekeeping_GenesHuman.csv"
                 download(url, path)
             file = open(os.path.join(data_directory, files), "r", encoding='utf-8')
             for lines in file.readlines()[1:]:
@@ -837,7 +837,7 @@ class sctreeshap:
                 if not os.path.exists(data_directory):
                     os.mkdir(data_directory)
                 path = Path(os.path.join(data_directory, files))
-                url = "https://housekeeping.unicamp.br/Housekeeping_GenesMouse.csv"
+                url = "https://raw.githubusercontent.com/ForwardStar/sctreeshap/main/Housekeeping_GenesMouse.csv"
                 download(url, path)
             file = open(os.path.join(data_directory, files), "r", encoding='utf-8')
             for lines in file.readlines()[1:]:
@@ -877,7 +877,7 @@ class sctreeshap:
         if isinstance(min_partial, float):
             target = []
             cluster = data.columns.values[-1]
-            for idx, columns in data.iteritems():
+            for idx, _ in data.items():
                 if idx != cluster:
                     expression = data[idx].to_numpy()
                     expression = expression[expression > 0]

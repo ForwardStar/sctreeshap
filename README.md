@@ -1,24 +1,28 @@
 # sctreeshap
 
-When doing single-cell RNA sequencing work, we firstly do clustering by community detection. Then we match the clusters to major cell types, which forms a cluster tree.
+When doing single-cell RNA sequencing work, we firstly do clustering by community detection. Then we match the clusters to major cell types, which forms a cluster tree. Following cluster tree represents [Allen Human Brain Atlas](https://human.brain-map.org/):
 
 ![clustertree.png](https://i.loli.net/2021/07/19/2bBatvnr45WczpK.png)
 
-We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. sctreeshap constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
+We usually need to select a branch for analysis, which helps us investigate on gene differential expressions on cell subtypes. This package ``sctreeshap`` constructs a data structure, which helps us quickly filter data whose clusters are under a specific branch (or in a specific cluster set). Moreover, it can run shap automatically to indicate marker genes.
 
 Github repo:
 
 https://github.com/ForwardStar/sctreeshap
 
-# v0.7.6 && v0.7.6.1 Update
+# v0.7.6 && v0.7.6.1 && v0.7.6.2 Update
 
-Resolve dependency error: replace pathlib with pathlib2 since pathlib has no longer been supported in Python 3.10.
+Resolve dependency error:
+- Replace ``pathlib`` with ``pathlib2`` since ``pathlib`` has no longer been supported in Python 3.10;
+- Remove deprecated sklearn dependency.
+
+Bug fixes: fix function ``geneFiltering`` error for the deprecated ``pandas.DataFrame.iteritems()`` function.
 
 # v0.7.5 Update
 
 - Custom model supported.
 
-In v0.7.0--v0.7.4, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using 'geneFiltering()' before setting output as 'probability'.
+In v0.7.0--v0.7.4, we mainly worked for supporting probability output for shap values. This is not stable and could not deal with a large feature set. Therefore, try using ``geneFiltering()`` before setting output as ``probability``.
 
 A sample code is as follows:
 
@@ -50,7 +54,7 @@ sample.explainMulti(sample_dataset, shap_params = {
 })
 ```
 
-While in v0.7.5, we supported custom models in 'explainBinary()' and 'explainMulti()'. Currently, there is a new parameter 'model' in the two function. You can set model='XGBClassifier', model='RandomForestClassifier' or model='DecisionTreeClassifier'. However, in the most cases the default XGBClassifier has the best accuracy. You can also set the model as one you defined, like some neuron networks, which may even outperform xgboost models. We do not ensure that shap explainer supports your custom model.
+While in v0.7.5, we supported custom models in ``explainBinary()`` and ``explainMulti()``. Currently, there is a new parameter ``model`` in the two function. You can set ``model='XGBClassifier'``, ``model='RandomForestClassifier'`` or ``model='DecisionTreeClassifier'``. However, in the most cases the default ``XGBClassifier`` has the best accuracy. You can also set the model as one you defined, like some neuron networks, which may even outperform xgboost models. We do not ensure that shap explainer supports your custom model.
 
 # Documentations
 
@@ -72,7 +76,7 @@ pip install sctreeshap
 
 ## Example
 
-An example dataset, human brain MTG cell type, can be analyzed as default:
+An example dataset, [human brain MTG cell type](https://www.nature.com/articles/s41586-019-1506-7), can be analyzed as default:
 
 ```python
 # Run in Jupyter Notebook
@@ -202,7 +206,7 @@ After reading in data, you can select a branch in the cluster tree. Cells with c
 data = Sample.selectBranch(data, 'n70')
 ```
 
-You can also filter low-expressed genes, housekeeping genes and general genes by:
+You can also filter low-expressed genes, [housekeeping genes](https://housekeeping.unicamp.br/) and general genes by:
 
 ```python
 prefix = ["MT", "RPS", "RPL", "HSP", "HLA"]
@@ -211,7 +215,7 @@ data = Sample.geneFiltering(data, min_partial=0.3, gene_set=housekeeping, gene_p
 print(data)
 ```
 
-Then genes expressed in <30% cells will be filtered. Genes in gene_set or with prefix in gene_prefix will also be filtered.
+Then genes expressed in <30% cells will be filtered. Genes in ``gene_set`` or with prefix in ``gene_prefix`` will also be filtered.
 
 You can merge clusters under a branch if needed:
 
@@ -219,7 +223,7 @@ You can merge clusters under a branch if needed:
 data = Sample.mergeBranch(data, 'n73')
 ```
 
-This relabels cells with cluster ['OPC L1-6 PDGFRA', 'Astro L1-6 FGFR3 SLC14A1', 'Astro L1-2 FGFR3 GFAP'] as 'n73'.
+This relabels cells with cluster ``['OPC L1-6 PDGFRA', 'Astro L1-6 FGFR3 SLC14A1', 'Astro L1-2 FGFR3 GFAP']`` as ``n73``.
 
 ## Displaying Shap Figures
 
@@ -262,7 +266,7 @@ Sample.explainBinary(
 
 ## Get Shap Values and Marker Genes
 
-After running explainBinary() or explainMulti(), you can run:
+After running ``explainBinary()`` or ``explainMulti()``, you can run:
 
 ```python
 shap_values = Sample.getShapValues()
